@@ -1,0 +1,334 @@
+<?xml version='1.0' encoding='utf-8'?>
+<graphml xmlns="http://graphml.graphdrawing.org/xmlns" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://graphml.graphdrawing.org/xmlns http://graphml.graphdrawing.org/xmlns/1.0/graphml.xsd">
+  <key id="d4" for="edge" attr.name="length" attr.type="double" />
+  <key id="d3" for="node" attr.name="y" attr.type="double" />
+  <key id="d2" for="node" attr.name="x" attr.type="double" />
+  <key id="d1" for="node" attr.name="lon" attr.type="double" />
+  <key id="d0" for="node" attr.name="lat" attr.type="double" />
+  <graph edgedefault="undirected">
+    <node id="M_37">
+      <data key="d0">38.9041</data>
+      <data key="d1">-77.0631</data>
+      <data key="d2">0.0</data>
+      <data key="d3">0.0</data>
+    </node>
+    <node id="M_36">
+      <data key="d0">38.9043</data>
+      <data key="d1">-77.0612</data>
+      <data key="d2">164.5951</data>
+      <data key="d3">22.264</data>
+    </node>
+    <node id="M_35">
+      <data key="d0">38.9045</data>
+      <data key="d1">-77.0594</data>
+      <data key="d2">320.5274</data>
+      <data key="d3">44.528</data>
+    </node>
+    <node id="M_34">
+      <data key="d0">38.9047</data>
+      <data key="d1">-77.0575</data>
+      <data key="d2">485.1225</data>
+      <data key="d3">66.792</data>
+    </node>
+    <node id="M_33">
+      <data key="d0">38.9049</data>
+      <data key="d1">-77.0557</data>
+      <data key="d2">641.0548</data>
+      <data key="d3">89.056</data>
+    </node>
+    <node id="M_32">
+      <data key="d0">38.9051</data>
+      <data key="d1">-77.0538</data>
+      <data key="d2">805.6499</data>
+      <data key="d3">111.32</data>
+    </node>
+    <node id="M_31">
+      <data key="d0">38.9053</data>
+      <data key="d1">-77.052</data>
+      <data key="d2">961.5822</data>
+      <data key="d3">133.584</data>
+    </node>
+    <node id="WIS_N">
+      <data key="d0">38.9063</data>
+      <data key="d1">-77.0594</data>
+      <data key="d2">320.5274</data>
+      <data key="d3">244.904</data>
+    </node>
+    <node id="WIS_O">
+      <data key="d0">38.9081</data>
+      <data key="d1">-77.0594</data>
+      <data key="d2">320.5274</data>
+      <data key="d3">445.28</data>
+    </node>
+    <node id="WIS_P">
+      <data key="d0">38.9099</data>
+      <data key="d1">-77.0594</data>
+      <data key="d2">320.5274</data>
+      <data key="d3">645.656</data>
+    </node>
+    <node id="WIS_Q">
+      <data key="d0">38.9117</data>
+      <data key="d1">-77.0594</data>
+      <data key="d2">320.5274</data>
+      <data key="d3">846.032</data>
+    </node>
+    <node id="N_37">
+      <data key="d0">38.9063</data>
+      <data key="d1">-77.0631</data>
+      <data key="d2">0.0</data>
+      <data key="d3">244.904</data>
+    </node>
+    <node id="N_36">
+      <data key="d0">38.9063</data>
+      <data key="d1">-77.0612</data>
+      <data key="d2">164.5951</data>
+      <data key="d3">244.904</data>
+    </node>
+    <node id="N_34">
+      <data key="d0">38.9063</data>
+      <data key="d1">-77.0575</data>
+      <data key="d2">485.1225</data>
+      <data key="d3">244.904</data>
+    </node>
+    <node id="N_33">
+      <data key="d0">38.9063</data>
+      <data key="d1">-77.0557</data>
+      <data key="d2">641.0548</data>
+      <data key="d3">244.904</data>
+    </node>
+    <node id="N_32">
+      <data key="d0">38.9063</data>
+      <data key="d1">-77.0538</data>
+      <data key="d2">805.6499</data>
+      <data key="d3">244.904</data>
+    </node>
+    <node id="N_31">
+      <data key="d0">38.9063</data>
+      <data key="d1">-77.052</data>
+      <data key="d2">961.5822</data>
+      <data key="d3">244.904</data>
+    </node>
+    <node id="O_37">
+      <data key="d0">38.9081</data>
+      <data key="d1">-77.0631</data>
+      <data key="d2">0.0</data>
+      <data key="d3">445.28</data>
+    </node>
+    <node id="O_36">
+      <data key="d0">38.9081</data>
+      <data key="d1">-77.0612</data>
+      <data key="d2">164.5951</data>
+      <data key="d3">445.28</data>
+    </node>
+    <node id="O_34">
+      <data key="d0">38.9081</data>
+      <data key="d1">-77.0575</data>
+      <data key="d2">485.1225</data>
+      <data key="d3">445.28</data>
+    </node>
+    <node id="O_33">
+      <data key="d0">38.9081</data>
+      <data key="d1">-77.0557</data>
+      <data key="d2">641.0548</data>
+      <data key="d3">445.28</data>
+    </node>
+    <node id="O_32">
+      <data key="d0">38.9081</data>
+      <data key="d1">-77.0538</data>
+      <data key="d2">805.6499</data>
+      <data key="d3">445.28</data>
+    </node>
+    <node id="P_37">
+      <data key="d0">38.9099</data>
+      <data key="d1">-77.0631</data>
+      <data key="d2">0.0</data>
+      <data key="d3">645.656</data>
+    </node>
+    <node id="P_36">
+      <data key="d0">38.9099</data>
+      <data key="d1">-77.0612</data>
+      <data key="d2">164.5951</data>
+      <data key="d3">645.656</data>
+    </node>
+    <node id="P_34">
+      <data key="d0">38.9099</data>
+      <data key="d1">-77.0575</data>
+      <data key="d2">485.1225</data>
+      <data key="d3">645.656</data>
+    </node>
+    <node id="P_33">
+      <data key="d0">38.9099</data>
+      <data key="d1">-77.0557</data>
+      <data key="d2">641.0548</data>
+      <data key="d3">645.656</data>
+    </node>
+    <node id="P_32">
+      <data key="d0">38.9099</data>
+      <data key="d1">-77.0538</data>
+      <data key="d2">805.6499</data>
+      <data key="d3">645.656</data>
+    </node>
+    <node id="Q_37">
+      <data key="d0">38.9117</data>
+      <data key="d1">-77.0631</data>
+      <data key="d2">0.0</data>
+      <data key="d3">846.032</data>
+    </node>
+    <node id="Q_36">
+      <data key="d0">38.9117</data>
+      <data key="d1">-77.0612</data>
+      <data key="d2">164.5951</data>
+      <data key="d3">846.032</data>
+    </node>
+    <node id="Q_34">
+      <data key="d0">38.9117</data>
+      <data key="d1">-77.0575</data>
+      <data key="d2">485.1225</data>
+      <data key="d3">846.032</data>
+    </node>
+    <node id="Q_33">
+      <data key="d0">38.9117</data>
+      <data key="d1">-77.0557</data>
+      <data key="d2">641.0548</data>
+      <data key="d3">846.032</data>
+    </node>
+    <edge source="M_37" target="M_36">
+      <data key="d4">165.91</data>
+    </edge>
+    <edge source="M_37" target="N_37">
+      <data key="d4">244.63</data>
+    </edge>
+    <edge source="M_36" target="M_35">
+      <data key="d4">157.34</data>
+    </edge>
+    <edge source="M_36" target="N_36">
+      <data key="d4">222.39</data>
+    </edge>
+    <edge source="M_35" target="M_34">
+      <data key="d4">165.91</data>
+    </edge>
+    <edge source="M_35" target="WIS_N">
+      <data key="d4">200.15</data>
+    </edge>
+    <edge source="M_34" target="M_33">
+      <data key="d4">157.34</data>
+    </edge>
+    <edge source="M_33" target="M_32">
+      <data key="d4">165.91</data>
+    </edge>
+    <edge source="M_33" target="N_33">
+      <data key="d4">155.67</data>
+    </edge>
+    <edge source="M_32" target="M_31">
+      <data key="d4">157.33</data>
+    </edge>
+    <edge source="M_32" target="N_32">
+      <data key="d4">133.43</data>
+    </edge>
+    <edge source="M_31" target="N_31">
+      <data key="d4">111.19</data>
+    </edge>
+    <edge source="WIS_N" target="WIS_O">
+      <data key="d4">200.15</data>
+    </edge>
+    <edge source="WIS_N" target="N_36">
+      <data key="d4">155.75</data>
+    </edge>
+    <edge source="WIS_N" target="N_34">
+      <data key="d4">164.41</data>
+    </edge>
+    <edge source="WIS_O" target="WIS_P">
+      <data key="d4">200.15</data>
+    </edge>
+    <edge source="WIS_O" target="O_36">
+      <data key="d4">155.75</data>
+    </edge>
+    <edge source="WIS_O" target="O_34">
+      <data key="d4">164.4</data>
+    </edge>
+    <edge source="WIS_P" target="WIS_Q">
+      <data key="d4">200.15</data>
+    </edge>
+    <edge source="WIS_P" target="P_36">
+      <data key="d4">155.74</data>
+    </edge>
+    <edge source="WIS_P" target="P_34">
+      <data key="d4">164.4</data>
+    </edge>
+    <edge source="WIS_Q" target="Q_36">
+      <data key="d4">155.74</data>
+    </edge>
+    <edge source="WIS_Q" target="Q_34">
+      <data key="d4">164.39</data>
+    </edge>
+    <edge source="N_37" target="N_36">
+      <data key="d4">164.41</data>
+    </edge>
+    <edge source="N_37" target="O_37">
+      <data key="d4">200.15</data>
+    </edge>
+    <edge source="N_36" target="O_36">
+      <data key="d4">200.15</data>
+    </edge>
+    <edge source="N_34" target="N_33">
+      <data key="d4">155.75</data>
+    </edge>
+    <edge source="N_33" target="N_32">
+      <data key="d4">164.41</data>
+    </edge>
+    <edge source="N_33" target="O_33">
+      <data key="d4">200.15</data>
+    </edge>
+    <edge source="N_32" target="N_31">
+      <data key="d4">155.75</data>
+    </edge>
+    <edge source="N_32" target="O_32">
+      <data key="d4">200.15</data>
+    </edge>
+    <edge source="O_37" target="O_36">
+      <data key="d4">164.4</data>
+    </edge>
+    <edge source="O_37" target="P_37">
+      <data key="d4">200.15</data>
+    </edge>
+    <edge source="O_36" target="P_36">
+      <data key="d4">200.15</data>
+    </edge>
+    <edge source="O_34" target="O_33">
+      <data key="d4">155.75</data>
+    </edge>
+    <edge source="O_33" target="O_32">
+      <data key="d4">164.4</data>
+    </edge>
+    <edge source="O_33" target="P_33">
+      <data key="d4">200.15</data>
+    </edge>
+    <edge source="O_32" target="P_32">
+      <data key="d4">200.15</data>
+    </edge>
+    <edge source="P_37" target="P_36">
+      <data key="d4">164.4</data>
+    </edge>
+    <edge source="P_37" target="Q_37">
+      <data key="d4">200.15</data>
+    </edge>
+    <edge source="P_36" target="Q_36">
+      <data key="d4">200.15</data>
+    </edge>
+    <edge source="P_34" target="P_33">
+      <data key="d4">155.74</data>
+    </edge>
+    <edge source="P_33" target="P_32">
+      <data key="d4">164.4</data>
+    </edge>
+    <edge source="P_33" target="Q_33">
+      <data key="d4">200.15</data>
+    </edge>
+    <edge source="Q_37" target="Q_36">
+      <data key="d4">164.39</data>
+    </edge>
+    <edge source="Q_34" target="Q_33">
+      <data key="d4">155.74</data>
+    </edge>
+  </graph>
+</graphml>
