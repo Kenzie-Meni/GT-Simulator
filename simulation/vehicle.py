@@ -182,32 +182,56 @@ class Vehicle:
 
     # ── DTN buffer helpers ─────────────────────────────────────────────────
 
-    def receive(self, messages: List[Message]) -> int:
+    # Type rank: higher = harder to evict. A message only evicts an incumbent
+    # of strictly lower rank; within the same rank, priority_score() decides.
+    _TYPE_RANK = {"FILE_ACK": 2, "COI_SIGHTING": 1, "FILE_CHUNK": 0}
+
+    def _msg_key(self, msg, now: float):
+        return (self._TYPE_RANK.get(msg.msg_type, 0), msg.priority_score(now))
+
+    def receive(self, messages: List[Message], now: float = 0.0) -> int:
         """
-        Accept messages not already in buffer (dedup by msg_id).
+        Accept messages into the priority buffer.
+
+        Eviction order (lowest first): FILE_CHUNK < COI_SIGHTING < FILE_ACK.
+        Within the same type, priority_score() breaks ties.
+        A sighting will never be evicted to make room for a chunk.
         Returns number of new messages accepted.
         """
         added = 0
         for msg in messages:
-            if (msg.msg_id not in self.seen_ids
-                    and len(self.buffer) < config.BUFFER_CAPACITY):
+            if msg.msg_id in self.seen_ids:
+                continue
+            if len(self.buffer) < config.BUFFER_CAPACITY:
                 self.buffer.append(msg)
                 self.seen_ids.add(msg.msg_id)
                 added += 1
+            else:
+                min_idx = min(range(len(self.buffer)),
+                              key=lambda i: self._msg_key(self.buffer[i], now))
+                if self._msg_key(msg, now) > self._msg_key(self.buffer[min_idx], now):
+                    self.buffer.pop(min_idx)
+                    self.buffer.append(msg)
+                    self.seen_ids.add(msg.msg_id)
+                    added += 1
         return added
 
     def deliver_to_node(self, node_x: float, node_y: float,
                         now: float) -> List[Message]:
         """
-        If within WIFI_RANGE of a node, mark all buffered messages as delivered.
-        Returns list of newly delivered messages.
+        If within WIFI_RANGE of a static IoT node, mark COI_SIGHTING messages
+        as delivered.  FILE_CHUNK and FILE_ACK messages are handled separately
+        in the engine (chunks go to the destination, ACKs go to the file source).
+        Returns list of newly delivered sighting messages.
         """
         from core.utils import dist_m
         if dist_m(self.x, self.y, node_x, node_y) > config.WIFI_RANGE:
             return []
         delivered = []
         for msg in self.buffer:
-            if not msg.delivered and not msg.is_expired(now):
+            if (msg.msg_type == "COI_SIGHTING"
+                    and not msg.delivered
+                    and not msg.is_expired(now)):
                 msg.delivered     = True
                 msg.delivery_time = now
                 delivered.append(msg)

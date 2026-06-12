@@ -115,6 +115,20 @@ def run(
     static_pos_map = {n.node_id: (n.x, n.y) for n in static_nodes}
     coi = next((v for v in vehicles if v.is_coi), None)
 
+    # ── File transfer setup ────────────────────────────────────────────────
+    file_source = random.choice(static_nodes)
+    # Chunk IDs start well above sighting IDs to avoid collisions
+    msg_counter = file_source.init_file_store(start_id=10_000, now=0.0)
+
+    # Mother position for chunk delivery (passed in via result or derived)
+    mother_x = getattr(result, "mother_x", None)
+    mother_y = getattr(result, "mother_y", None)
+
+    delivered_chunk_ids: set = set()   # chunk_idx values confirmed at destination
+    acks_sent: set           = set()   # thresholds already ACKed (e.g. 0.25)
+    dest_pending_acks: list  = []      # FILE_ACK messages waiting at destination
+    ack_id_counter           = 20_000  # unique IDs for ACK messages
+
     for t_int in range(0, config.SIM_DURATION, int(config.DT)):
         t = float(t_int)
         contacts_this_step: List[tuple] = []
@@ -150,7 +164,7 @@ def run(
 
                 # Run epsilon-constraint LP scheduler
                 transferred, status = node.schedule_transfer(veh, contact_window, t)
-                veh.receive(transferred)
+                veh.receive(transferred, now=t)
 
                 result.stats["total_transfers"]  += len(transferred)
                 result.stats[f"scheduler_{status}"] += 1
@@ -167,20 +181,24 @@ def run(
                 d = dist_m(va.x, va.y, vb.x, vb.y)
                 if d > config.WIFI_RANGE:
                     continue
-                # Simple spray: share messages between vehicles
+                any_transferred = False
                 for msg in list(va.buffer):
-                    if (msg.msg_id not in vb.seen_ids
-                            and msg.copies_in_net < config.MAX_SPRAY_COPIES
-                            and len(vb.buffer) < config.BUFFER_CAPACITY
-                            and not msg.is_expired(t)):
-                        vb.buffer.append(msg)
-                        vb.seen_ids.add(msg.msg_id)
+                    if msg.msg_id in vb.seen_ids or msg.is_expired(t):
+                        continue
+                    spray_cap = (config.CHUNK_SPRAY_COPIES
+                                 if msg.msg_type == "FILE_CHUNK"
+                                 else config.MAX_SPRAY_COPIES)
+                    if msg.copies_in_net >= spray_cap:
+                        continue
+                    if vb.receive([msg], now=t) > 0:
                         msg.copies_in_net += 1
                         msg.hop_count     += 1
-                        contacts_this_step.append(
-                            (va.x, va.y, vb.x, vb.y,
-                             "bluetooth" if d <= config.BT_RANGE else "wifi")
-                        )
+                        any_transferred    = True
+                if any_transferred:
+                    contacts_this_step.append(
+                        (va.x, va.y, vb.x, vb.y,
+                         "bluetooth" if d <= config.BT_RANGE else "wifi")
+                    )
 
         # ── Delivery check ─────────────────────────────────────────────────
         for node in static_nodes:
@@ -193,6 +211,60 @@ def run(
                     if verbose:
                         print(f"  t={t:5.0f}s  {m.msg_id:03d} delivered  "
                               f"hops={m.hop_count}  delay={delay:.0f}s")
+
+        # ── Chunk delivery to destination ──────────────────────────────────
+        if mother_x is not None:
+            for veh in vehicles:
+                if dist_m(veh.x, veh.y, mother_x, mother_y) > config.WIFI_RANGE:
+                    continue
+                for msg in veh.buffer:
+                    if msg.msg_type == "FILE_CHUNK" and not msg.delivered:
+                        msg.delivered     = True
+                        msg.delivery_time = t
+                        delivered_chunk_ids.add(msg.chunk_idx)
+
+                # Vehicles near destination also pick up pending ACK messages
+                if dest_pending_acks:
+                    veh.receive(dest_pending_acks, now=t)
+                    # Don't clear dest_pending_acks — other vehicles should get a copy too
+                    # but cap spray on ACKs via copies_in_net (set high so they spread freely)
+
+            # Generate ACK messages when completion thresholds are crossed
+            completion = len(delivered_chunk_ids) / config.FILE_CHUNK_COUNT
+            for thresh in config.ACK_THRESHOLDS:
+                if completion >= thresh and thresh not in acks_sent:
+                    acks_sent.add(thresh)
+                    from core.utils import xy2ll
+                    lat, lon = xy2ll(mother_x, mother_y)
+                    ack = Message(
+                        msg_id        = ack_id_counter,
+                        msg_type      = "FILE_ACK",
+                        origin        = "DEST",
+                        origin_lat    = lat,
+                        origin_lon    = lon,
+                        created_at    = t,
+                        ttl           = t + config.CHUNK_TTL,
+                        benefit       = 0.9,
+                        cpu_cost      = 0.01,
+                        mem_cost      = 0.01,
+                        bw_cost       = 0.1,
+                        file_id       = 0,
+                        ack_threshold = thresh,
+                    )
+                    dest_pending_acks.append(ack)
+                    ack_id_counter += 1
+                    print(f"[file] ACK generated at t={t:.0f}s  "
+                          f"completion={completion:.0%}  threshold={thresh:.0%}")
+
+            # Deliver ACK messages to the file source node
+            for veh in vehicles:
+                if dist_m(veh.x, veh.y, file_source.x, file_source.y) > config.WIFI_RANGE:
+                    continue
+                for msg in list(veh.buffer):
+                    if msg.msg_type == "FILE_ACK" and not msg.delivered:
+                        msg.delivered     = True
+                        msg.delivery_time = t
+                        file_source.receive_ack(msg)
 
         # ── Connectivity window tracking ───────────────────────────────────
         all_entities = (
@@ -234,8 +306,14 @@ def run(
         if w["duration"] >= 1.0:
             result.connectivity_log.append(w)
 
-    result.stats["total_messages"] = len(result.all_messages)
-    result.stats["delivered"]      = len(result.delivered_msgs)
+    result.stats["total_messages"]       = len(result.all_messages)
+    result.stats["delivered"]            = len(result.delivered_msgs)
     result.stats["connectivity_windows"] = len(result.connectivity_log)
+    result.stats["chunks_total"]         = config.FILE_CHUNK_COUNT
+    result.stats["chunks_delivered"]     = len(delivered_chunk_ids)
+    result.stats["chunk_completion_pct"] = round(
+        len(delivered_chunk_ids) / config.FILE_CHUNK_COUNT * 100, 1)
+    result.stats["file_source_node"]     = file_source.node_id
+    result.stats["acks_generated"]       = len(acks_sent)
 
     return result

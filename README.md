@@ -18,9 +18,13 @@
 
 ## Overview
 
-This project models a **store-carry-forward vehicular DTN** in Georgetown, Washington DC. A vehicle of interest — the **Car of Interest (COI)** — circulates through the neighborhood carrying data from IoT static nodes (traffic sensors, environmental monitors). Other vehicles act as opportunistic data mules, relaying messages toward a destination when contact windows open.
+This project models a **store-carry-forward vehicular DTN** in Georgetown, Washington DC. The network has two competing missions running simultaneously over the same vehicle fleet and radio bandwidth:
 
-The scheduling problem is solved in two phases:
+**Mission 1 — COI surveillance.** A **Car of Interest (COI)** circulates through the neighborhood. Static IoT nodes (intersections, sensors) observe the COI when it passes within range and generate small, time-sensitive *sighting messages* recording its position and timestamp. Background vehicles act as **data mules**, picking up these sighting reports and carrying them to a destination node.
+
+**Mission 2 — Large file transfer.** One randomly chosen edge node holds a 256 MB file pre-divided into **1,000 chunks** (~256 KB each). The same data mules must also carry chunks toward the destination. Because no vehicle can carry the full file in one trip, chunks spread gradually through the network via spray-and-wait — but they compete directly with sighting messages for the same limited buffer space on every vehicle.
+
+The scheduler resolves this tension in two phases:
 
 | Phase | Algorithm | When |
 |---|---|---|
@@ -43,7 +47,14 @@ The simulation is built on a **real OSM road graph** (M, N, O, P, Q Streets NW a
 - **Two-tier DTN scheduling**
   - Offline NSGA-II explores the 4-objective Pareto front (benefit ↑, CPU ↓, memory ↓, bandwidth ↓)
   - Online epsilon-constraint LP maximizes message benefit at each contact, respecting hard resource ceilings
-- **Spray-and-wait forwarding** — bounded message replication (configurable copies)
+- **Competing message types** — three types with strict priority ordering
+  - `COI_SIGHTING` — small, high priority, time-sensitive (TTL 900s)
+  - `FILE_CHUNK` — one fragment of a 1,000-chunk large file; low individual priority, no TTL urgency
+  - `FILE_ACK` — completion acknowledgement traveling back from destination to source
+- **Priority queue vehicle buffer** — type-ranked eviction (ACK > Sighting > Chunk); a sighting will never be bumped to make room for a chunk regardless of age
+- **Large file transfer** — source node randomly assigned at startup; 1,000 chunks dispersed via spray-and-wait; un-dispatched chunks prioritized over already-dispatched ones
+- **ACK feedback loop** — destination generates `FILE_ACK` messages at 25/50/75/100% completion thresholds; ACKs ride passing vehicles back to the source, which stops redundantly resending confirmed chunks
+- **Spray-and-wait forwarding** — bounded replication with separate caps for sightings (`MAX_SPRAY_COPIES`) and chunks (`CHUNK_SPRAY_COPIES`)
 - **Dual-radio contact model** — Bluetooth (≤40m) and WiFi (≤100m) with per-window technology classification
 - **Full connectivity logging** — every contact window logged with duration, min/max distance, lat/lon, and technology
 - **Animated MP4 output** — dark-theme top-down map with directional car icons, range rings, contact links, delivery curve, and live status
@@ -114,9 +125,44 @@ Each vehicle maintains `(x, y, speed, heading, accel)` and updates every timeste
 - **Follower vehicles** bias their turn weights by `1/distance_to_COI`, causing them to gradually converge toward the COI's side of the network.
 - Escort vehicles follow fixed closed circuits on streets parallel and adjacent to the COI's route.
 
+### Competing Message Types & Priority Scheduling
+
+Three message types share the same vehicle buffers and radio bandwidth, creating the core scheduling tension:
+
+| Type | Priority rank | TTL | Spray cap | Delivered to |
+|---|---|---|---|---|
+| `FILE_ACK` | 3 (highest) | 2 hours | — | File source node |
+| `COI_SIGHTING` | 2 | 15 min | `MAX_SPRAY_COPIES` | Any static node |
+| `FILE_CHUNK` | 1 (lowest) | 2 hours | `CHUNK_SPRAY_COPIES` | Destination only |
+
+**Buffer eviction** is type-ranked: a `FILE_CHUNK` is always evicted before a `COI_SIGHTING`, regardless of the sighting's age or hop count. Within the same type, `priority_score()` breaks ties.
+
+**Sighting priority score:** `benefit × ttl_ratio × 1/(1+hops)` — decays with age and hops  
+**Chunk priority score:** `CHUNK_BASE_BENEFIT / (1 + 0.3×hops)` — flat low value, slight decay with hops  
+**ACK priority score:** `0.85 / (1 + 0.1×hops)` — high and stable, designed to return to source quickly
+
+**File transfer flow:**
+```
+Source node seeds 1,000 chunks
+        ↓
+LP scheduler dispatches un-dispatched chunks first,
+then re-dispatches un-acked chunks for redundancy
+        ↓
+Chunks spread vehicle-to-vehicle (spray-and-wait, cap=3)
+        ↓
+Vehicles near destination deliver chunks (dest only)
+        ↓
+At 25/50/75/100% completion → FILE_ACK generated
+        ↓
+ACK rides mules back to source → source stops
+resending already-delivered chunks
+```
+
+In a 30-minute simulation: sightings achieve 100% delivery in seconds; chunks reach ~6–7% completion — the competing objective in practice.
+
 ### Spray-and-Wait DTN
 
-Messages propagate via spray-and-wait: each message may be replicated up to `MAX_SPRAY_COPIES` times across the network. Delivery is confirmed when a vehicle carrying the message comes within `WIFI_RANGE` of a static node.
+Messages propagate via spray-and-wait: each message may be replicated up to its type-specific spray cap across the network. Sightings and chunks use separate caps to prevent chunk flooding from starving sighting replication.
 
 ---
 
@@ -226,10 +272,20 @@ All parameters live in [`config.py`](config.py). Nothing else needs to be edited
 
 | Parameter | Default | Description |
 |---|---|---|
-| `MESSAGE_TTL` | `900` | Seconds before a message expires |
-| `MAX_SPRAY_COPIES` | `4` | Max copies of one message in the network |
-| `BUFFER_CAPACITY` | `10` | Max messages a vehicle can carry |
+| `MESSAGE_TTL` | `900` | Seconds before a sighting expires |
+| `MAX_SPRAY_COPIES` | `4` | Max copies of one sighting in the network |
+| `BUFFER_CAPACITY` | `10` | Max messages a vehicle can carry (priority queue) |
 | `COI_SIGHTING_INTERVAL` | `30` | Seconds between COI sighting events at nearby nodes |
+
+### File Transfer
+
+| Parameter | Default | Description |
+|---|---|---|
+| `FILE_CHUNK_COUNT` | `1000` | Total chunks in the large file (~256 MB ÷ ~256 KB) |
+| `CHUNK_BASE_BENEFIT` | `0.15` | Flat LP benefit per chunk (vs sighting ~0.6–0.9) |
+| `CHUNK_SPRAY_COPIES` | `3` | Max copies of one chunk in the network |
+| `CHUNK_TTL` | `7200` | Chunk validity window (2 hours — not time-sensitive) |
+| `ACK_THRESHOLDS` | `[0.25, 0.50, 0.75, 1.00]` | Completion fractions that trigger a return ACK message |
 
 ### Scheduler Resources
 
@@ -298,11 +354,18 @@ Running with default config on a 1800s (30-minute) simulation:
 ```
 Messages generated  : 22
 Delivered           : 22  (100.0%)
-Avg delivery delay  : 8s
-Connectivity windows: 818   (BT=711, WiFi=107)
-LP solves           : 49
+Avg delivery delay  : 0s
+Connectivity windows: 842   (BT=726, WiFi=116)
+LP solves           : 64
 LP fallbacks        : 0
+
+File transfer results:
+  Source node         : O_33  (randomly chosen each run)
+  Chunks delivered    : 65 / 1000  (6.5%)
+  ACKs generated      : 0
 ```
+
+The competing objective is visible in these numbers: COI sightings achieve instant 100% delivery because they dominate the priority queue, while file chunks — 1,000 of them competing for the same 10-slot vehicle buffers — accumulate slowly at ~6–7% per 30 minutes. Full file delivery would require several hours of simulated time, a longer sim duration, more vehicles, or relaxed chunk spray limits.
 
 ---
 

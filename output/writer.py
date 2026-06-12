@@ -95,7 +95,10 @@ def write_json(
             "longest_window_s": round(
                 max((w["duration"] for w in connectivity_log), default=0.0), 1
             ),
-            **{k: int(v) for k, v in stats.items()},
+            **{k: (float(v) if isinstance(v, float) else int(v))
+               for k, v in stats.items()
+               if k != "file_source_node"},
+            "file_source_node": stats.get("file_source_node", "unknown"),
         },
         "windows": connectivity_log,
     }

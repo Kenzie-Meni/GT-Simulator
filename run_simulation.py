@@ -168,7 +168,10 @@ def main():
     # ── 6. Run simulation ──────────────────────────────────────────────────
     print(f"\n[sim] Simulating {config.SIM_DURATION}s "
           f"({config.SIM_DURATION//60} min) at dt={config.DT}s ...")
-    result = run(G, vehicles, static_nodes, verbose=False)
+    pre_result = SimulationResult()
+    pre_result.mother_x = mother_x
+    pre_result.mother_y = mother_y
+    result = run(G, vehicles, static_nodes, result=pre_result, verbose=False)
 
     n_total = result.stats["total_messages"]
     n_del   = result.stats["delivered"]
@@ -180,6 +183,12 @@ def main():
     print(f"  Connectivity windows: {len(result.connectivity_log)}")
     print(f"  LP solves           : {result.stats.get('scheduler_lp_success',0)}")
     print(f"  LP fallbacks        : {result.stats.get('scheduler_lp_fallback',0)}")
+    print(f"\n[file] File transfer results:")
+    print(f"  Source node         : {result.stats.get('file_source_node','?')}")
+    print(f"  Chunks delivered    : {result.stats.get('chunks_delivered',0)} / "
+          f"{result.stats.get('chunks_total',0)}  "
+          f"({result.stats.get('chunk_completion_pct',0):.1f}%)")
+    print(f"  ACKs generated      : {result.stats.get('acks_generated',0)}")
 
     # ── 7. Write outputs ───────────────────────────────────────────────────
     static_pos_map = {n.node_id: (n.x, n.y) for n in static_nodes}

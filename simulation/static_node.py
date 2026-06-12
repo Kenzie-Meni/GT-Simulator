@@ -35,6 +35,13 @@ class StaticNode:
     mother_x/y : XY position of the mother/destination node
     decode_fn  : NSGA-II decode function for benefit assignment
     road_length: used to normalise distance-to-mother in benefit scoring
+
+    File transfer fields (populated only on the randomly chosen source node)
+    --------------------------------------------------------------------------
+    is_file_source  : True for the one node holding the large file
+    file_store      : all FILE_CHUNK messages; not subject to BUFFER_CAPACITY
+    dispatched_ids  : chunk msg_ids already handed to at least one vehicle
+    acked_chunk_ids : chunk indices confirmed delivered (via FILE_ACK feedback)
     """
     node_id:     str
     x:           float
@@ -47,6 +54,12 @@ class StaticNode:
     buffer:   List[Message] = field(default_factory=list)
     seen_ids: Set[int]      = field(default_factory=set)
     _cpu_history: deque     = field(default_factory=lambda: deque(maxlen=5))
+
+    # File source fields
+    is_file_source:  bool      = False
+    file_store:      List[Message] = field(default_factory=list)
+    dispatched_ids:  Set[int]      = field(default_factory=set)
+    acked_chunk_ids: Set[int]      = field(default_factory=set)
 
     # ── Properties ─────────────────────────────────────────────────────────
 
@@ -61,6 +74,48 @@ class StaticNode:
     @property
     def dist_to_mother(self) -> float:
         return dist_m(self.x, self.y, self.mother_x, self.mother_y)
+
+    # ── File store init ────────────────────────────────────────────────────
+
+    def init_file_store(self, start_id: int, now: float) -> int:
+        """
+        Populate file_store with FILE_CHUNK_COUNT chunk messages.
+        Returns the next available msg_id after the last chunk.
+        Chunks use CHUNK_BASE_BENEFIT and a long TTL — they are not time-sensitive.
+        """
+        from core.utils import xy2ll
+        lat, lon = xy2ll(self.x, self.y)
+        for i in range(config.FILE_CHUNK_COUNT):
+            msg = Message(
+                msg_id       = start_id + i,
+                msg_type     = "FILE_CHUNK",
+                origin       = self.node_id,
+                origin_lat   = lat,
+                origin_lon   = lon,
+                created_at   = now,
+                ttl          = now + config.CHUNK_TTL,
+                benefit      = config.CHUNK_BASE_BENEFIT,
+                cpu_cost     = 0.02,
+                mem_cost     = 0.01,
+                bw_cost      = 0.5,
+                file_id      = 0,
+                chunk_idx    = i,
+                total_chunks = config.FILE_CHUNK_COUNT,
+            )
+            self.file_store.append(msg)
+        self.is_file_source = True
+        print(f"[file] Source node: {self.node_id}  "
+              f"({config.FILE_CHUNK_COUNT} chunks seeded, ids {start_id}–{start_id + config.FILE_CHUNK_COUNT - 1})")
+        return start_id + config.FILE_CHUNK_COUNT
+
+    # ── ACK reception ──────────────────────────────────────────────────────
+
+    def receive_ack(self, ack_msg) -> None:
+        """Record chunk indices confirmed delivered via a FILE_ACK message."""
+        # ack_threshold encodes how many chunks are done as a fraction
+        n_done = int(ack_msg.ack_threshold * config.FILE_CHUNK_COUNT)
+        for i in range(n_done):
+            self.acked_chunk_ids.add(i)
 
     # ── Message generation ─────────────────────────────────────────────────
 
@@ -141,13 +196,34 @@ class StaticNode:
         snapshot = self._sample_resources(now)
         snapshot.contact_window = contact_window
 
+        # Sighting candidates — no buffer-space gate; receive() handles eviction
         candidates = [
             m for m in self.buffer
             if not m.is_expired(now)
             and m.msg_id not in vehicle.seen_ids
             and m.copies_in_net < config.MAX_SPRAY_COPIES
-            and len(vehicle.buffer) < config.BUFFER_CAPACITY
         ]
+
+        # Chunk candidates from file_store (source node only)
+        # Only offer chunks when there is actual free space — sightings take priority
+        if self.is_file_source and len(vehicle.buffer) < config.BUFFER_CAPACITY:
+            # Prioritise un-dispatched chunks; fall back to dispatched-but-not-acked
+            undispatched = [
+                m for m in self.file_store
+                if m.msg_id not in self.dispatched_ids
+                and m.msg_id not in vehicle.seen_ids
+                and m.copies_in_net < config.CHUNK_SPRAY_COPIES
+            ]
+            redispatch = [
+                m for m in self.file_store
+                if m.msg_id in self.dispatched_ids
+                and m.chunk_idx not in self.acked_chunk_ids
+                and m.msg_id not in vehicle.seen_ids
+                and m.copies_in_net < config.CHUNK_SPRAY_COPIES
+            ]
+            chunk_pool = (undispatched or redispatch)
+            # Cap how many chunks we present to the LP so sightings aren't buried
+            candidates += chunk_pool[:20]
 
         selected, status = epsilon_constraint_select(
             candidates   = candidates,
@@ -164,6 +240,8 @@ class StaticNode:
         for msg in selected:
             msg.copies_in_net += 1
             msg.hop_count     += 1
+            if msg.msg_type == "FILE_CHUNK":
+                self.dispatched_ids.add(msg.msg_id)
 
         return selected, status
 

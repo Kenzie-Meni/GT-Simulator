@@ -82,10 +82,18 @@ TURN_SLOWDOWN = 0.45   # fraction of max speed at sharp turns
 WAYPOINT_RADIUS = 15.0  # metres — how close before advancing to next waypoint
 
 # ── Message / DTN parameters ───────────────────────────────────────────────
-MESSAGE_TTL        = 900   # seconds before a message expires
-MAX_SPRAY_COPIES   = 4     # max copies of one message in the network
-BUFFER_CAPACITY    = 10    # max messages a vehicle can carry
+MESSAGE_TTL        = 900   # seconds before a sighting message expires
+MAX_SPRAY_COPIES   = 4     # max copies of one sighting in the network
+BUFFER_CAPACITY    = 10    # max messages a vehicle can carry (priority queue)
 COI_SIGHTING_INTERVAL = 30  # seconds between COI sighting events
+
+# ── File transfer parameters ───────────────────────────────────────────────
+FILE_CHUNK_COUNT   = 1000  # total chunks in the large file
+CHUNK_BASE_BENEFIT = 0.15  # flat LP benefit for a single chunk (vs sighting ~0.6-0.9)
+CHUNK_SPRAY_COPIES = 3     # max copies of one chunk in the network
+CHUNK_TTL          = 7200  # chunks are valid for 2 hours (not time-sensitive)
+# Completion fractions that trigger a FILE_ACK message back toward the source
+ACK_THRESHOLDS     = [0.25, 0.50, 0.75, 1.00]
 
 # ── Resource budget (scheduler) ────────────────────────────────────────────
 CPU_RESERVE_FLOOR = 0.20   # keep 20% CPU free for other tasks
