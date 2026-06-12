@@ -174,9 +174,9 @@ def run(
                         (node.x, node.y, veh.x, veh.y, tech)
                     )
 
-        # ── Vehicle-to-vehicle contact (FILE_CHUNK and FILE_ACK only) ─────
-        # COI_SIGHTING messages relay through static nodes, not V2V.
-        # V2V requires a shared comms channel; range is determined by that channel.
+        # ── Vehicle-to-vehicle contact (all message types) ────────────────
+        # Any message type can transfer V2V as long as both vehicles share
+        # a radio channel (BT↔BT, WiFi↔WiFi, or either↔both).
         for i, va in enumerate(vehicles):
             for vb in vehicles[i + 1:]:
                 d   = dist_m(va.x, va.y, vb.x, vb.y)
@@ -185,13 +185,14 @@ def run(
                     continue
                 any_transferred = False
                 for msg in list(va.buffer):
-                    if msg.msg_type == "COI_SIGHTING":
-                        continue  # sightings relay via static nodes only
                     if msg.msg_id in vb.seen_ids or msg.is_expired(t):
                         continue
-                    spray_cap = (config.CHUNK_SPRAY_COPIES
-                                 if msg.msg_type == "FILE_CHUNK"
-                                 else config.MAX_SPRAY_COPIES)
+                    if msg.msg_type == "FILE_CHUNK":
+                        spray_cap = config.CHUNK_SPRAY_COPIES
+                    elif msg.msg_type == "COI_SIGHTING":
+                        spray_cap = config.MAX_SPRAY_COPIES
+                    else:
+                        spray_cap = float("inf")  # FILE_ACK spreads freely
                     if msg.copies_in_net >= spray_cap:
                         continue
                     if vb.receive([msg], now=t) > 0:

@@ -49,7 +49,7 @@ The simulation runs on a **real OSM road graph** of Georgetown (M, N, O, P, Q St
   - `wifi` — WiFi only (65 m range)
   - `both` — dual radio; WiFi preferred when shared
   - COI and escorts always carry both radios; civilian traffic is randomly 1/3 BT / 1/3 WiFi / 1/3 both
-- **Relay delivery chain** — COI sightings travel `source node → vehicle → relay node → vehicle → destination`; V2V contact is used only for `FILE_CHUNK` and `FILE_ACK` (shared-channel gated)
+- **Relay delivery chain** — COI sightings travel `source node → vehicle → relay node → vehicle → destination` via static node infrastructure; V2V contact is available to **all message types** but requires a shared radio channel (BT↔BT, WiFi↔WiFi, or either↔both)
 - **Two-tier DTN scheduling**
   - Offline NSGA-II explores the 4-objective Pareto front (benefit ↑, CPU ↓, memory ↓, bandwidth ↓)
   - Online epsilon-constraint LP maximizes message benefit at each contact, respecting hard resource ceilings
@@ -138,7 +138,7 @@ Vehicle passes another node → deposits copy (store-and-forward)
 Eventually a vehicle near the destination delivers it
 ```
 
-Vehicle-to-vehicle contact is reserved for `FILE_CHUNK` and `FILE_ACK`, and requires both vehicles to share a radio channel (BT↔BT, WiFi↔WiFi, or either↔both).
+Vehicle-to-vehicle contact works for **all message types** as long as both vehicles share a radio channel (BT↔BT, WiFi↔WiFi, or either↔both). COI sightings can therefore spread V2V in addition to the static node relay chain.
 
 ### Competing Message Types
 
