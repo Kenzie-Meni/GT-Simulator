@@ -213,6 +213,8 @@ Outputs written to `data/`:
 | `connectivity.json` | Same data as JSON with summary statistics |
 | `simulation.mp4` | Animated top-down map of the full simulation |
 
+See [data/DATA_DICTIONARY.md](data/DATA_DICTIONARY.md) for a full description of every field.
+
 ### Batch run (100 randomized trials)
 
 ```bash
@@ -227,6 +229,8 @@ Outputs written to `data/`:
 |---|---|
 | `batch_results.csv` | One row per run — all 27 metrics for every seed |
 | `batch_summary.txt` | Aggregate table: mean / std / min / P25 / P50 / P75 / max |
+
+See [data/DATA_DICTIONARY.md](data/DATA_DICTIONARY.md) for a full description of every field.
 
 ---
 
