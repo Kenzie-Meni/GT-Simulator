@@ -37,7 +37,7 @@ The simulation runs on a **real OSM road graph** of Georgetown (M, N, O, P, Q St
 
 ## Features
 
-- **Real OSM road network** — live download via `osmnx` (falls back to bundled GraphML); 31 intersections, 46 edges
+- **Real OSM road network** — live download via `osmnx` (falls back to bundled GraphML); 94 nodes, 137 edges within the Georgetown bounding box
 - **Kinematic vehicle physics** — friction-limited acceleration, heading-error turn slowdown, waypoint-following
 - **Heterogeneous vehicle fleet**
   - COI on a fixed closed circuit (magenta)
@@ -169,8 +169,8 @@ M Street  ·——·——M_35——·——·——·
          37th    Wisc    33rd  31st
 ```
 
-**Nodes:** 31 intersections (+ 4 randomly placed edge nodes per run)
-**Edges:** 46 road segments
+**Nodes:** 94 OSM nodes (+ 4 randomly placed edge nodes per run)
+**Edges:** 137 road segments
 **Static IoT nodes:** `WIS_N`, `WIS_O`, `WIS_P`, `WIS_Q`, `N_33`, `O_33`, `M_36`, `P_33`
 
 ---
