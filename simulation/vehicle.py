@@ -46,6 +46,7 @@ class Vehicle:
     dynamic_routing: bool = False   # pick next road stochastically at intersections
     is_follower:     bool = False   # bias turns toward COI position
     color:           str  = "#4caf50"
+    radio_type:      str  = "both"  # "bt" | "wifi" | "both"
     lat:     float = 0.0
     lon:     float = 0.0
     # DTN message buffer
@@ -242,18 +243,19 @@ class Vehicle:
     def state_dict(self) -> dict:
         """Snapshot of vehicle state for animation frame recording."""
         return {
-            "vid":       self.vid,
-            "x":         self.x,
-            "y":         self.y,
-            "lat":       self.lat,
-            "lon":       self.lon,
-            "speed":     self.speed,
-            "heading":   self.heading,
-            "is_coi":      self.is_coi,
-            "is_escort":   self.is_escort,
-            "is_follower": self.is_follower,
-            "color":     self.color,
-            "buf_len":   len(self.buffer),
+            "vid":        self.vid,
+            "x":          self.x,
+            "y":          self.y,
+            "lat":        self.lat,
+            "lon":        self.lon,
+            "speed":      self.speed,
+            "heading":    self.heading,
+            "is_coi":     self.is_coi,
+            "is_escort":  self.is_escort,
+            "is_follower":self.is_follower,
+            "color":      self.color,
+            "radio_type": self.radio_type,
+            "buf_len":    len(self.buffer),
         }
 
     def __repr__(self) -> str:

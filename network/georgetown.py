@@ -125,11 +125,11 @@ def load_graph(try_osmnx: bool = False) -> nx.Graph:
     if try_osmnx:
         try:
             import osmnx as ox
-            G_raw = ox.graph_from_bbox(
-                config.BBOX["lat_max"], config.BBOX["lat_min"],
-                config.BBOX["lon_max"], config.BBOX["lon_min"],
-                network_type="drive",
+            bbox = (
+                config.BBOX["lon_min"], config.BBOX["lat_min"],
+                config.BBOX["lon_max"], config.BBOX["lat_max"],
             )
+            G_raw = ox.graph_from_bbox(bbox=bbox, network_type="drive")
             G = nx.Graph(G_raw.to_undirected())
             for n, data in G.nodes(data=True):
                 lat = data.get("y", 0.0)
@@ -172,6 +172,44 @@ def load_graph(try_osmnx: bool = False) -> nx.Graph:
     print(f"[network] Built from coordinates: {G.number_of_nodes()} nodes, "
           f"{G.number_of_edges()} edges")
     return G
+
+
+def name_to_node(G: nx.Graph) -> dict:
+    """
+    Map each named Georgetown intersection to the nearest node in G.
+
+    When using the hand-coded graph the names exist directly.
+    When using the real OSM graph (numeric node IDs) we find the nearest
+    node by coordinate so the rest of the code can still use human-readable
+    names to look up positions and build routes.
+
+    Returns {name: node_id_in_G}.
+    """
+    from core.utils import ll2xy, dist_m
+    out = {}
+    for name, (lat, lon) in _NODES.items():
+        if name in G.nodes():
+            out[name] = name
+            continue
+        tx, ty = ll2xy(lat, lon)
+        best, best_d = None, float("inf")
+        for n in G.nodes():
+            d = dist_m(G.nodes[n]["x"], G.nodes[n]["y"], tx, ty)
+            if d < best_d:
+                best, best_d = n, d
+        out[name] = best
+    return out
+
+
+def named_xy(name: str):
+    """
+    Return (x, y) in local metres for a named intersection, or None.
+    Works even when the name is not a node in the current graph — useful
+    for placing street labels on the animation regardless of graph type.
+    """
+    from core.utils import ll2xy
+    coords = _NODES.get(name)
+    return ll2xy(*coords) if coords is not None else None
 
 
 def make_random_route(G: nx.Graph, start: str, length: int = 20,

@@ -29,5 +29,8 @@ data/*.png
 .vscode/
 .idea/
 
+# OSMnx tile/graph cache
+cache/
+
 # Keep the demo GIF
 !assets/demo.gif
