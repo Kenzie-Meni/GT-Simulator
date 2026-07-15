@@ -52,7 +52,7 @@ def write_csv(connectivity_log: List[dict], path: str) -> None:
 
 def write_json(
     connectivity_log: List[dict],
-    static_nodes,
+    nodes: dict,
     coi_circuit: List[str],
     stats: dict,
     path: str,
@@ -63,20 +63,26 @@ def write_json(
     bt_windows   = [w for w in connectivity_log if w["tech"] == "bluetooth"]
     wifi_windows = [w for w in connectivity_log if w["tech"] == "wifi"]
 
+    windows = [{
+        "node_a": w["node_a"], "node_b": w["node_b"],
+        "start_time_s": w["start_time"], "end_time_s": w["end_time"],
+        "duration_s": w["duration"], "technology": w["tech"],
+        "min_distance_m": w["min_dist"], "max_distance_m": w["max_dist"],
+    } for w in connectivity_log]
+
     summary = {
+        "schema_version": "2.0",
         "simulation": {
             "duration_s":        config.SIM_DURATION,
             "area":              "Georgetown, Washington DC",
             "bbox":              config.BBOX,
             "bluetooth_range_m": config.BT_RANGE,
             "wifi_range_m":      config.WIFI_RANGE,
-            "num_static_nodes":  len(static_nodes),
+            "num_nodes":         len(nodes),
+            "default_altitude_m": config.DEFAULT_ALTITUDE_M,
             "coi_circuit":       coi_circuit,
         },
-        "static_nodes": {
-            n.node_id: {"lat": n.lat, "lon": n.lon}
-            for n in static_nodes
-        },
+        "nodes": nodes,
         "statistics": {
             "total_windows":       len(connectivity_log),
             "bluetooth_windows":   len(bt_windows),
@@ -100,7 +106,7 @@ def write_json(
                if k != "file_source_node"},
             "file_source_node": stats.get("file_source_node", "unknown"),
         },
-        "windows": connectivity_log,
+        "windows": windows,
     }
 
     with open(path, "w") as f:

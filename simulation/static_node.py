@@ -55,11 +55,22 @@ class StaticNode:
     seen_ids: Set[int]      = field(default_factory=set)
     _cpu_history: deque     = field(default_factory=lambda: deque(maxlen=5))
 
+    # Radio capability — assigned randomly at startup (1/3 each)
+    # "bt"   : Bluetooth only  (range = BT_RANGE)
+    # "wifi" : WiFi only       (range = WIFI_RANGE)
+    # "both" : both radios     (range = WIFI_RANGE, classifies by distance)
+    radio_type: str = "both"
+
     # File source fields
     is_file_source:  bool      = False
     file_store:      List[Message] = field(default_factory=list)
     dispatched_ids:  Set[int]      = field(default_factory=set)
     acked_chunk_ids: Set[int]      = field(default_factory=set)
+
+    @property
+    def effective_range(self) -> float:
+        """Maximum contact range given this node's radio type."""
+        return config.BT_RANGE if self.radio_type == "bt" else config.WIFI_RANGE
 
     # ── Properties ─────────────────────────────────────────────────────────
 

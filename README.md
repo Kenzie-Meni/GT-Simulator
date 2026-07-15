@@ -12,7 +12,7 @@
 
 ![Simulation demo](assets/demo.gif)
 
-*30-minute Georgetown DC simulation: COI (magenta), escorts (orange/cyan), followers (red/yellow), traffic (green), and IoT static nodes (blue squares). Contact links flash yellow (Bluetooth) or purple (WiFi) during active transfers.*
+*30-minute Georgetown DC simulation: COI (magenta), escorts and followers (red), traffic (green/purple/teal), and IoT static nodes (blue squares). Contact links flash yellow (Bluetooth) or purple (WiFi) during active transfers.*
 
 ---
 
@@ -20,9 +20,9 @@
 
 This project models a **store-carry-forward vehicular DTN** in Georgetown, Washington DC. The network has two competing missions running simultaneously over the same vehicle fleet and radio bandwidth:
 
-**Mission 1 — COI surveillance.** A **Car of Interest (COI)** circulates through the neighborhood. Static IoT nodes (intersections, sensors) observe the COI when it passes within range and generate small, time-sensitive *sighting messages* recording its position and timestamp. Background vehicles act as **data mules**, picking up these sighting reports and carrying them to a destination node.
+**Mission 1 — COI surveillance.** A **Car of Interest (COI)** circulates through the neighborhood. Static IoT nodes (intersections, sensors) observe the COI when it passes within range and generate small, time-sensitive *sighting messages* recording its position and timestamp. These messages relay through the static node infrastructure (node → vehicle → node → … → destination) rather than vehicle-to-vehicle, mimicking a real sensor network relay chain.
 
-**Mission 2 — Large file transfer.** One randomly chosen edge node holds a 256 MB file pre-divided into **1,000 chunks** (~256 KB each). The same data mules must also carry chunks toward the destination. Because no vehicle can carry the full file in one trip, chunks spread gradually through the network via spray-and-wait — but they compete directly with sighting messages for the same limited buffer space on every vehicle.
+**Mission 2 — Large file transfer.** One randomly chosen edge node holds a large file pre-divided into **1,000 chunks**. The same data mules must also carry chunks toward the destination. Chunks spread vehicle-to-vehicle via spray-and-wait — but compete directly with sighting messages for the same limited buffer space and radio bandwidth on every vehicle.
 
 The scheduler resolves this tension in two phases:
 
@@ -31,56 +31,61 @@ The scheduler resolves this tension in two phases:
 | Offline | NSGA-II Pareto optimizer | Once at startup |
 | Online | Epsilon-constraint LP | At every contact event |
 
-The simulation is built on a **real OSM road graph** (M, N, O, P, Q Streets NW and Wisconsin Ave NW), with kinematic vehicles obeying friction-limited acceleration and turn-proportional speed reduction.
+The simulation runs on a **real OSM road graph** of Georgetown (M, N, O, P, Q Streets NW and Wisconsin Ave NW), with kinematic vehicles obeying friction-limited acceleration and turn-proportional speed reduction.
 
 ---
 
 ## Features
 
-- **Realistic road network** — 31 intersections, 46 edges from real Georgetown OSM coordinates
-- **Kinematic physics** — friction-limited acceleration, heading-error turn slowdown, waypoint-following
+- **Real OSM road network** — live download via `osmnx` (falls back to bundled GraphML); 94 nodes, 137 edges within the Georgetown bounding box
+- **Kinematic vehicle physics** — friction-limited acceleration, heading-error turn slowdown, waypoint-following
 - **Heterogeneous vehicle fleet**
-  - COI on a fixed closed circuit
-  - Escort vehicles on parallel adjacent-street circuits
-  - Follower vehicles with reactive turn bias toward the COI
-  - Background traffic with probabilistic intersection routing
+  - COI on a fixed closed circuit (magenta)
+  - Escort vehicles on parallel adjacent-street circuits (red)
+  - Follower vehicles with reactive turn bias toward the COI (red)
+  - Background traffic with probabilistic intersection routing (green/purple/teal)
+- **Heterogeneous radio model** — each vehicle and static node is independently assigned a radio type at startup:
+  - `bt` — Bluetooth only (45 m range)
+  - `wifi` — WiFi only (65 m range)
+  - `both` — dual radio; WiFi preferred when shared
+  - COI and escorts always carry both radios; civilian traffic is randomly 1/3 BT / 1/3 WiFi / 1/3 both
+- **Relay delivery chain** — COI sightings travel `source node → vehicle → relay node → vehicle → destination` via static node infrastructure; V2V contact is available to **all message types** but requires a shared radio channel (BT↔BT, WiFi↔WiFi, or either↔both)
 - **Two-tier DTN scheduling**
   - Offline NSGA-II explores the 4-objective Pareto front (benefit ↑, CPU ↓, memory ↓, bandwidth ↓)
   - Online epsilon-constraint LP maximizes message benefit at each contact, respecting hard resource ceilings
 - **Competing message types** — three types with strict priority ordering
-  - `COI_SIGHTING` — small, high priority, time-sensitive (TTL 900s)
-  - `FILE_CHUNK` — one fragment of a 1,000-chunk large file; low individual priority, no TTL urgency
-  - `FILE_ACK` — completion acknowledgement traveling back from destination to source
+  - `FILE_ACK` — completion ACK back to source; highest priority, rides any vehicle
+  - `COI_SIGHTING` — small, time-sensitive (TTL 900s); relayed via static nodes only
+  - `FILE_CHUNK` — one fragment of 1,000-chunk file; lowest individual priority, no TTL urgency
 - **Priority queue vehicle buffer** — type-ranked eviction (ACK > Sighting > Chunk); a sighting will never be bumped to make room for a chunk regardless of age
-- **Large file transfer** — source node randomly assigned at startup; 1,000 chunks dispersed via spray-and-wait; un-dispatched chunks prioritized over already-dispatched ones
-- **ACK feedback loop** — destination generates `FILE_ACK` messages at 25/50/75/100% completion thresholds; ACKs ride passing vehicles back to the source, which stops redundantly resending confirmed chunks
-- **Spray-and-wait forwarding** — bounded replication with separate caps for sightings (`MAX_SPRAY_COPIES`) and chunks (`CHUNK_SPRAY_COPIES`)
-- **Dual-radio contact model** — Bluetooth (≤40m) and WiFi (≤100m) with per-window technology classification
+- **ACK feedback loop** — destination generates `FILE_ACK` at 25/50/75/100% completion thresholds; ACKs ride vehicles back to source, which stops redundantly resending confirmed chunks
+- **Spray-and-wait forwarding** — bounded replication with separate caps for sightings and chunks
 - **Full connectivity logging** — every contact window logged with duration, min/max distance, lat/lon, and technology
-- **Animated MP4 output** — dark-theme top-down map with directional car icons, range rings, contact links, delivery curve, and live status
+- **Single-run animation** — dark-theme top-down map with directional car icons, range rings, contact links, live delivery curve, and sighting log panel
+- **Batch runner** — run N independent randomized trials, write per-run CSV, print aggregate statistics
 
 ---
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                        run_simulation.py                    │
-│  ┌──────────────┐  ┌──────────────────┐  ┌──────────────┐  │
-│  │  network/    │  │     moo/         │  │ simulation/  │  │
-│  │  georgetown  │  │  nsga2 (offline) │  │  engine.py   │  │
-│  │  .py         │  │  scheduler (LP)  │  │  vehicle.py  │  │
-│  │  Road graph  │  │  Pareto front    │  │  static_node │  │
-│  └──────┬───────┘  └────────┬─────────┘  └──────┬───────┘  │
-│         │                   │                    │          │
-│         └───────────────────┴────────────────────┘          │
-│                             │                               │
-│                     ┌───────▼────────┐                      │
-│                     │   output/      │                      │
-│                     │  writer.py     │                      │
-│                     │  animator.py   │                      │
-│                     └───────────────-┘                      │
-└─────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────┐
+│              run_simulation.py  /  run_batch.py                  │
+│  ┌──────────────┐  ┌──────────────────┐  ┌──────────────────┐   │
+│  │  network/    │  │     moo/         │  │  simulation/     │   │
+│  │  georgetown  │  │  nsga2 (offline) │  │  engine.py       │   │
+│  │  .py         │  │  scheduler (LP)  │  │  vehicle.py      │   │
+│  │  Road graph  │  │  Pareto front    │  │  static_node.py  │   │
+│  └──────┬───────┘  └────────┬─────────┘  └──────┬───────────┘   │
+│         │                   │                    │               │
+│         └───────────────────┴────────────────────┘               │
+│                             │                                    │
+│                     ┌───────▼────────┐                           │
+│                     │   output/      │                           │
+│                     │  writer.py     │                           │
+│                     │  animator.py   │                           │
+│                     └───────────────-┘                           │
+└──────────────────────────────────────────────────────────────────┘
 ```
 
 ### Offline NSGA-II
@@ -100,7 +105,7 @@ Triggered at every contact event between a vehicle and a static IoT node. Formul
 
 ```
 maximize   Σ benefit_i · x_i
-subject to Σ cpu_i     · x_i  ≤  CPU_RESERVE_FLOOR  (hard ceiling)
+subject to Σ cpu_i     · x_i  ≤  CPU_RESERVE_FLOOR
            Σ mem_i     · x_i  ≤  MEM_RESERVE_FLOOR
            Σ bw_i      · x_i  ≤  BW_FRACTION · contact_window
            x_i ∈ {0, 1}
@@ -119,50 +124,31 @@ Each vehicle maintains `(x, y, speed, heading, accel)` and updates every timeste
 5. Rate-limited heading update
 6. Integrate position; advance waypoint when within `WAYPOINT_RADIUS`
 
-### Dynamic & Reactive Routing
+### Relay Delivery Model
 
-- **All traffic vehicles** use probabilistic intersection routing: at each junction, next hop is sampled by node degree (favors main roads).
-- **Follower vehicles** bias their turn weights by `1/distance_to_COI`, causing them to gradually converge toward the COI's side of the network.
-- Escort vehicles follow fixed closed circuits on streets parallel and adjacent to the COI's route.
+COI sightings travel **through static node infrastructure**, not vehicle-to-vehicle:
 
-### Competing Message Types & Priority Scheduling
+```
+COI passes IoT node → node generates sighting
+       ↓
+Vehicle passes node → picks up sighting
+       ↓
+Vehicle passes another node → deposits copy (store-and-forward)
+       ↓
+Eventually a vehicle near the destination delivers it
+```
 
-Three message types share the same vehicle buffers and radio bandwidth, creating the core scheduling tension:
+Vehicle-to-vehicle contact works for **all message types** as long as both vehicles share a radio channel (BT↔BT, WiFi↔WiFi, or either↔both). COI sightings can therefore spread V2V in addition to the static node relay chain.
 
-| Type | Priority rank | TTL | Spray cap | Delivered to |
+### Competing Message Types
+
+| Type | Priority rank | TTL | Spray cap | Delivery path |
 |---|---|---|---|---|
-| `FILE_ACK` | 3 (highest) | 2 hours | — | File source node |
-| `COI_SIGHTING` | 2 | 15 min | `MAX_SPRAY_COPIES` | Any static node |
-| `FILE_CHUNK` | 1 (lowest) | 2 hours | `CHUNK_SPRAY_COPIES` | Destination only |
+| `FILE_ACK` | 3 (highest) | 2 hours | — | Via vehicles to file source node |
+| `COI_SIGHTING` | 2 | 15 min | `MAX_SPRAY_COPIES=4` | Node relay chain to destination |
+| `FILE_CHUNK` | 1 (lowest) | 2 hours | `CHUNK_SPRAY_COPIES=3` | V2V spray to destination |
 
 **Buffer eviction** is type-ranked: a `FILE_CHUNK` is always evicted before a `COI_SIGHTING`, regardless of the sighting's age or hop count. Within the same type, `priority_score()` breaks ties.
-
-**Sighting priority score:** `benefit × ttl_ratio × 1/(1+hops)` — decays with age and hops  
-**Chunk priority score:** `CHUNK_BASE_BENEFIT / (1 + 0.3×hops)` — flat low value, slight decay with hops  
-**ACK priority score:** `0.85 / (1 + 0.1×hops)` — high and stable, designed to return to source quickly
-
-**File transfer flow:**
-```
-Source node seeds 1,000 chunks
-        ↓
-LP scheduler dispatches un-dispatched chunks first,
-then re-dispatches un-acked chunks for redundancy
-        ↓
-Chunks spread vehicle-to-vehicle (spray-and-wait, cap=3)
-        ↓
-Vehicles near destination deliver chunks (dest only)
-        ↓
-At 25/50/75/100% completion → FILE_ACK generated
-        ↓
-ACK rides mules back to source → source stops
-resending already-delivered chunks
-```
-
-In a 30-minute simulation: sightings achieve 100% delivery in seconds; chunks reach ~6–7% completion — the competing objective in practice.
-
-### Spray-and-Wait DTN
-
-Messages propagate via spray-and-wait: each message may be replicated up to its type-specific spray cap across the network. Sightings and chunks use separate caps to prevent chunk flooding from starving sighting replication.
 
 ---
 
@@ -183,8 +169,8 @@ M Street  ·——·——M_35——·——·——·
          37th    Wisc    33rd  31st
 ```
 
-**Nodes:** 31 intersections  
-**Edges:** 46 road segments  
+**Nodes:** 94 OSM nodes (+ 4 randomly placed edge nodes per run)
+**Edges:** 137 road segments
 **Static IoT nodes:** `WIS_N`, `WIS_O`, `WIS_P`, `WIS_Q`, `N_33`, `O_33`, `M_36`, `P_33`
 
 ---
@@ -193,8 +179,8 @@ M Street  ·——·——M_35——·——·——·
 
 ```bash
 # Python 3.10+ required
-git clone https://github.com/yourusername/dtn-georgetown.git
-cd dtn-georgetown
+git clone https://github.com/Kenzie-Meni/GT-Simulator.git
+cd GT-Simulator
 
 python3 -m venv venv
 source venv/bin/activate        # Windows: venv\Scripts\activate
@@ -204,24 +190,77 @@ pip install -r requirements.txt
 # ffmpeg required for MP4 animation output
 # macOS:  brew install ffmpeg
 # Ubuntu: sudo apt install ffmpeg
+
 ```
 
 ---
 
 ## Usage
 
+### Single run (with animation)
+
 ```bash
-# Run the full simulation (30 min simulated time, ~3 min wall time)
 python run_simulation.py
 ```
 
-Outputs are written to `data/`:
+Set `DESTINATION_NODE` in `config.py` to a landmark such as `"M_33"` or an
+exact OSM node ID. Leave it as `None` for seeded random selection.
+
+Outputs written to `data/`:
 
 | File | Description |
 |---|---|
 | `connectivity.csv` | One row per contact window — node pair, technology, duration, distance, lat/lon |
 | `connectivity.json` | Same data as JSON with summary statistics |
 | `simulation.mp4` | Animated top-down map of the full simulation |
+
+See [data/DATA_DICTIONARY.md](data/DATA_DICTIONARY.md) for a full description of every field.
+
+### Connectivity analysis
+
+Generate a report from the latest schema-v2 connectivity output:
+
+```bash
+python analyze_results.py
+```
+
+![Connectivity analysis](data/analysis/connectivity.png)
+
+The chart covers contact duration, the most-connected nodes, radio usage, and
+contact activity over time. A concise companion report is available at
+[`data/analysis/summary.txt`](data/analysis/summary.txt).
+
+### Batch run (100 randomized trials)
+
+```bash
+python run_batch.py                        # 100 runs, seeds 0–99
+python run_batch.py --n 50                 # 50 runs
+python run_batch.py --n 200 --base-seed 1000
+```
+
+Outputs written to `data/`:
+
+| File | Description |
+|---|---|
+| `batch_results.csv` | One row per run — all 27 metrics for every seed |
+| `batch_summary.txt` | Aggregate table: mean / std / min / P25 / P50 / P75 / max |
+
+See [data/DATA_DICTIONARY.md](data/DATA_DICTIONARY.md) for a full description of every field.
+
+---
+
+## Performance
+
+Measured on a MacBook (Apple Silicon, macOS 14):
+
+| Task | Wall time |
+|---|---|
+| Graph load + NSGA-II setup | ~0.6 s |
+| 30-min simulation (no animation) | ~0.5 s |
+| 30-min simulation + MP4 render | ~50 s |
+| 100-run batch (no animation) | ~60 s |
+
+The simulation runs much faster than real time — a 30-minute scenario finishes in under a second. Animation rendering (600 frames → MP4 via ffmpeg) dominates the wall time for single runs. For batch analysis, disable animation (`RECORD_ANIMATION = False` in `config.py` or use `run_batch.py` which disables it automatically).
 
 ---
 
@@ -241,8 +280,8 @@ All parameters live in [`config.py`](config.py). Nothing else needs to be edited
 
 | Parameter | Default | Description |
 |---|---|---|
-| `BT_RANGE` | `40.0` | Bluetooth contact range (metres) |
-| `WIFI_RANGE` | `100.0` | WiFi contact range (metres) |
+| `BT_RANGE` | `45.0` | Bluetooth contact range (metres) |
+| `WIFI_RANGE` | `65.0` | WiFi contact range (metres) |
 
 ### Vehicle Fleet
 
@@ -251,16 +290,16 @@ All parameters live in [`config.py`](config.py). Nothing else needs to be edited
 | `NUM_VEHICLES` | `9` | Total background traffic vehicles |
 | `NUM_ESCORTS` | `2` | Escort vehicles on parallel circuits |
 | `NUM_FOLLOWERS` | `2` | Traffic vehicles that bias turns toward COI |
-| `COI_START_SPEED` | `7.0` | COI initial speed (m/s, ≈ 15.7 mph) |
-| `VEHICLE_SPEED_MIN` | `4.0` | Traffic min speed (m/s, ≈ 9 mph) |
-| `VEHICLE_SPEED_MAX` | `9.0` | Traffic max speed (m/s, ≈ 20 mph) |
+| `COI_START_SPEED` | `7.0` | COI initial speed (m/s ≈ 15.7 mph) |
+| `VEHICLE_SPEED_MIN` | `4.0` | Traffic min speed (m/s ≈ 9 mph) |
+| `VEHICLE_SPEED_MAX` | `9.0` | Traffic max speed (m/s ≈ 20 mph) |
 | `ROUTE_LENGTH` | `20` | Seed route length for dynamic-routing vehicles |
 
 ### Physics
 
 | Parameter | Default | Description |
 |---|---|---|
-| `MAX_SPEED` | `11.0` | Hard speed cap (m/s, ≈ 25 mph) |
+| `MAX_SPEED` | `11.0` | Hard speed cap (m/s ≈ 25 mph) |
 | `MIN_SPEED` | `1.5` | Minimum speed — vehicles never fully stop |
 | `MAX_ACCEL` | `2.0` | Maximum acceleration (m/s²) |
 | `MAX_BRAKE` | `4.0` | Maximum deceleration (m/s²) |
@@ -272,7 +311,7 @@ All parameters live in [`config.py`](config.py). Nothing else needs to be edited
 
 | Parameter | Default | Description |
 |---|---|---|
-| `MESSAGE_TTL` | `900` | Seconds before a sighting expires |
+| `MESSAGE_TTL` | `900` | Seconds before a sighting expires (15 min) |
 | `MAX_SPRAY_COPIES` | `4` | Max copies of one sighting in the network |
 | `BUFFER_CAPACITY` | `10` | Max messages a vehicle can carry (priority queue) |
 | `COI_SIGHTING_INTERVAL` | `30` | Seconds between COI sighting events at nearby nodes |
@@ -281,11 +320,11 @@ All parameters live in [`config.py`](config.py). Nothing else needs to be edited
 
 | Parameter | Default | Description |
 |---|---|---|
-| `FILE_CHUNK_COUNT` | `1000` | Total chunks in the large file (~256 MB ÷ ~256 KB) |
+| `FILE_CHUNK_COUNT` | `1000` | Total chunks in the large file |
 | `CHUNK_BASE_BENEFIT` | `0.15` | Flat LP benefit per chunk (vs sighting ~0.6–0.9) |
 | `CHUNK_SPRAY_COPIES` | `3` | Max copies of one chunk in the network |
-| `CHUNK_TTL` | `7200` | Chunk validity window (2 hours — not time-sensitive) |
-| `ACK_THRESHOLDS` | `[0.25, 0.50, 0.75, 1.00]` | Completion fractions that trigger a return ACK message |
+| `CHUNK_TTL` | `7200` | Chunk validity window (2 hours) |
+| `ACK_THRESHOLDS` | `[0.25, 0.50, 0.75, 1.00]` | Completion fractions that trigger a return ACK |
 
 ### Scheduler Resources
 
@@ -306,66 +345,119 @@ All parameters live in [`config.py`](config.py). Nothing else needs to be edited
 
 | Parameter | Default | Description |
 |---|---|---|
-| `RECORD_ANIMATION` | `True` | Save MP4 (set to False to skip) |
+| `RECORD_ANIMATION` | `True` | Save MP4 (set False to skip) |
 | `ANIMATION_FPS` | `15` | Output frame rate |
 | `ANIMATION_DPI` | `120` | Output resolution |
+
+---
+
+## Sample Results
+
+Single run with default config (seed=42, 1800s simulation):
+
+```
+================================================
+  DTN Run Summary   seed=42
+================================================
+  Destination      : WIS_O
+  File source node : EDGE_2
+
+  COI SIGHTINGS
+    Generated      : 8
+    Delivered      : 7  (87.5%)
+    Avg / P50 delay: 453.0s / 453.0s
+    Min / Max delay: 60.0s / 872.0s
+    Avg hops       : 1.0
+    Expired        : 1
+    Time to first  : 60.0s
+
+  FILE CHUNKS
+    Total / Delivered: 1000 / 71  (7.1%)
+    Rate           : 2.4 chunks/min
+    Avg delay      : N/A
+    Time to first  : N/A
+
+  FILE ACKs
+    Generated      : 0
+    Delivered      : 0  (0.0%)
+
+  NETWORK
+    Connectivity windows : 863  (BT: 329, WiFi: 534)
+    Avg window duration  : 9.1s
+    LP solves / fallbacks: 75 / 0
+    Total transfers      : 93
+================================================
+```
+
+**Reading the numbers:** Sightings achieve ~88% delivery because they dominate the priority queue and relay through the dense static node infrastructure. File chunks reach only ~7% completion in 30 minutes — the same vehicle buffers carry both, and 1,000 chunks competing for 10-slot buffers accumulate slowly. Full file delivery would require several hours of simulated time, more vehicles, or relaxed spray limits. No ACKs are generated until 25% chunk completion is crossed.
+
+---
+
+## Batch Analysis
+
+Running 100 randomized trials reveals the distribution across random seeds:
+
+```bash
+python run_batch.py --n 100
+```
+
+Each run randomizes: destination node, file source node, vehicle radio types, static node radio types, edge node placement, vehicle starting positions, vehicle speeds, vehicle initial headings, and dynamic routing decisions. This allows statistical characterization of DTN performance across different network topologies and traffic conditions.
+
+The output `data/batch_results.csv` contains one row per run with all 27 metrics, suitable for plotting delivery rate distributions, delay CDFs, or chunk completion vs. connectivity window counts.
+
+---
+
+## Randomization Sources
+
+Each run draws from 9 independent random sources (all seeded by the run seed for reproducibility):
+
+| Source | Effect |
+|---|---|
+| Destination node | Changes where sightings and chunks must reach |
+| File source node | Changes which static node seeds the 1,000 chunks |
+| Vehicle radio types | ~25% fewer contacts when BT-only meets WiFi-only vehicles |
+| Static node radio types | Same — affects node→vehicle relay opportunities |
+| Edge node placement | 4 extra nodes placed randomly along road segments |
+| Traffic start positions | Different initial vehicle distribution across the map |
+| Traffic speeds | Drawn from [4.0, 9.0] m/s uniform |
+| Traffic headings | Initial heading drawn from [0, 2π] |
+| Dynamic routing | Probabilistic turn choices at each intersection |
 
 ---
 
 ## Project Structure
 
 ```
-dtn-georgetown/
+GT-Simulator/
 ├── core/
 │   ├── message.py          # Message dataclass — urgency scoring, expiry, hop tracking
 │   ├── resource.py         # ResourceSnapshot — CPU/memory/bandwidth budget
-│   └── utils.py            # ll2xy, xy2ll, haversine_m, dist_m, classify_tech
+│   └── utils.py            # ll2xy, xy2ll, haversine_m, dist_m, compatible_range, contact_tech
 ├── simulation/
 │   ├── vehicle.py          # Kinematic vehicle — physics, dynamic routing, DTN buffer
 │   ├── static_node.py      # IoT static node — sighting generation, LP scheduler
-│   └── engine.py           # Main loop — stepping, contact detection, frame recorder
+│   └── engine.py           # Main loop — stepping, contact detection, relay model, frame recorder
 ├── moo/
 │   ├── nsga2.py            # Offline NSGA-II Pareto optimizer
 │   └── scheduler.py        # Online epsilon-constraint LP (scipy linprog)
 ├── network/
-│   ├── georgetown.py       # Road graph — real OSM coords, random route generator
+│   ├── georgetown.py       # Road graph — OSM download, bundled coords, name_to_node
 │   └── georgetown.graphml  # Pre-built graph (auto-regenerated if missing)
 ├── output/
 │   ├── writer.py           # CSV + JSON connectivity log writers
-│   └── animator.py         # MP4 builder — FancyArrow cars, range rings, stats panels
+│   └── animator.py         # MP4 builder — car icons, range rings, stats panels, sighting log
 ├── tests/
 │   ├── test_moo.py
 │   ├── test_vehicle.py
 │   └── test_connectivity.py
 ├── assets/
-│   └── demo.gif            # Animation preview (first 20s)
-├── data/                   # Simulation outputs (gitignored except demo assets)
-├── run_simulation.py       # Entry point
+│   └── demo.gif            # Animation preview
+├── data/                   # Simulation outputs (gitignored except assets)
+├── run_simulation.py       # Single-run entry point + simulate() / _compute_stats() helpers
+├── run_batch.py            # Batch runner — N runs, aggregate CSV + summary table
 ├── config.py               # All tunable parameters
 └── requirements.txt
 ```
-
----
-
-## Sample Results
-
-Running with default config on a 1800s (30-minute) simulation:
-
-```
-Messages generated  : 22
-Delivered           : 22  (100.0%)
-Avg delivery delay  : 0s
-Connectivity windows: 842   (BT=726, WiFi=116)
-LP solves           : 64
-LP fallbacks        : 0
-
-File transfer results:
-  Source node         : O_33  (randomly chosen each run)
-  Chunks delivered    : 65 / 1000  (6.5%)
-  ACKs generated      : 0
-```
-
-The competing objective is visible in these numbers: COI sightings achieve instant 100% delivery because they dominate the priority queue, while file chunks — 1,000 of them competing for the same 10-slot vehicle buffers — accumulate slowly at ~6–7% per 30 minutes. Full file delivery would require several hours of simulated time, a longer sim duration, more vehicles, or relaxed chunk spray limits.
 
 ---
 
@@ -373,7 +465,7 @@ The competing objective is visible in these numbers: COI sightings achieve insta
 
 | Package | Purpose |
 |---|---|
-| `numpy` | Numerical arrays, NSGA-II fitness evaluation |
+| `numpy` | Numerical arrays, NSGA-II fitness evaluation, batch statistics |
 | `scipy` | `linprog` for the online LP scheduler |
 | `matplotlib` | Animation rendering (FuncAnimation + FancyArrow) |
 | `networkx` | Road graph, shortest-path, neighbor traversal |

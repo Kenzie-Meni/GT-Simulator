@@ -10,10 +10,11 @@ SEED = 42
 # ── Simulation timing ──────────────────────────────────────────────────────
 SIM_DURATION   = 1800   # seconds (30 minutes)
 DT             = 1.0    # timestep in seconds
+DEFAULT_ALTITUDE_M = 0.0  # fixed altitude exported for all simulated nodes
 
 # ── Communication ranges ───────────────────────────────────────────────────
-BT_RANGE   = 40.0   # metres — Bluetooth (IoT / BLE)
-WIFI_RANGE = 100.0  # metres — WiFi (wider band → more 40-100m WiFi-only contacts)
+BT_RANGE   = 45.0   # metres — Bluetooth (IoT / BLE)
+WIFI_RANGE = 65.0   # metres — WiFi
 
 # ── Road network ───────────────────────────────────────────────────────────
 # Geographic origin for local XY coordinate system
@@ -22,27 +23,43 @@ LON_ORIGIN = -77.0631
 
 # Georgetown DC bounding box (for OSM download if osmnx is available)
 BBOX = {
-    "lat_min": 38.895,
-    "lat_max": 38.915,
-    "lon_min": -77.075,
-    "lon_max": -77.045,
+    "lat_min": 38.903,   # just south of M Street NW (38.9041)
+    "lat_max": 38.913,   # just north of Q Street NW (38.9117)
+    "lon_min": -77.064,  # just west  of 37th St NW  (-77.0631)
+    "lon_max": -77.051,  # just east  of 31st St NW  (-77.0520)
 }
 
 # Path to pre-built GraphML (used if OSM download unavailable)
 GRAPHML_PATH = "network/georgetown.graphml"
 
 # ── Static IoT nodes ───────────────────────────────────────────────────────
-# Names must match node IDs in the road graph
+# Names must match node IDs in the road graph (intersection-based nodes)
 STATIC_NODE_IDS = [
     "WIS_N", "WIS_O", "WIS_P", "WIS_Q",
     "N_33",  "O_33",  "M_36",  "P_33",
 ]
+# Additional IoT nodes placed at random positions along road *edges*
+# (between intersections).  Set to 0 to use intersection nodes only.
+NUM_EDGE_NODES = 4
+
+# Destination landmark (for example "M_33") or exact OSM node ID.
+# None selects a random OSM node using SEED.
+DESTINATION_NODE = None
 
 # ── Car of Interest (COI) ──────────────────────────────────────────────────
-# Ordered list of graph node IDs forming the closed circuit
+# Coarse waypoints — gaps are filled with nx.shortest_path at startup.
+# Route: Q Street east → 33rd Street south → M Street east →
+#        31st Street north → N Street to Wisconsin → Wisconsin north →
+#        Q Street west back to start.
 COI_CIRCUIT = [
-    "N_37", "WIS_N", "WIS_O", "O_33", "N_33", "N_32", "N_31",
-    "M_32", "M_33",  "M_34",  "M_35", "M_36", "M_37", "N_37",
+    "Q_37",   # NW corner
+    "Q_33",   # Q Street east end
+    "M_33",   # 33rd Street south to M Street
+    "M_31",   # M Street far east
+    "N_31",   # 31st Street north
+    "WIS_N",  # Wisconsin / N Street intersection
+    "WIS_Q",  # Wisconsin / Q Street intersection
+    "Q_37",   # back to start
 ]
 COI_START_SPEED = 7.0   # m/s
 
@@ -60,11 +77,11 @@ ESCORT_2_CIRCUIT = [
     "M_37", "M_36", "M_35", "WIS_N", "N_36", "N_37", "M_37",
 ]
 
-ESCORT_COLORS = ["#ff9800", "#00e5ff"]  # orange, cyan
+ESCORT_COLORS  = ["#ff6b6b"]  # red — same for all escorts and followers
+FOLLOWER_COLORS = ["#ff6b6b"]
 
 # ── Follower vehicles (traffic vehicles that shadow the COI) ──────────────
-NUM_FOLLOWERS    = 2    # first N traffic vehicles bias their turns toward COI
-FOLLOWER_COLORS  = ["#ff6b6b", "#ffd93d"]   # red, yellow
+NUM_FOLLOWERS = 2    # first N traffic vehicles bias their turns toward COI
 
 # ── Background traffic vehicles ────────────────────────────────────────────
 NUM_VEHICLES      = 9
