@@ -203,7 +203,16 @@ def simulate(
 
     # ── Destination node ──────────────────────────────────────────────────
     from core.utils import dist_m as _dm
-    dest_node_id = random.choice(node_list)
+    requested_dest = config.DESTINATION_NODE
+    if requested_dest is None:
+        dest_node_id = random.choice(node_list)
+    elif requested_dest in node_map:
+        dest_node_id = node_map[requested_dest]
+    else:
+        dest_node_id = next(
+            (n for n in node_list if str(n) == str(requested_dest)), None)
+        if dest_node_id is None:
+            raise ValueError(f"Unknown DESTINATION_NODE: {requested_dest!r}")
     mother_x     = G.nodes[dest_node_id]["x"]
     mother_y     = G.nodes[dest_node_id]["y"]
     dest_label = min(
@@ -364,6 +373,8 @@ def simulate(
     pre_result.mother_x = mother_x
     pre_result.mother_y = mother_y
     result = run(G, vehicles, static_nodes, result=pre_result, verbose=verbose)
+    result.nodes["DEST"].update(
+        osm_node_id=str(dest_node_id), label=dest_label)
 
     static_pos_map = {n.node_id: (n.x, n.y) for n in static_nodes}
 
@@ -372,7 +383,7 @@ def simulate(
         csv_path  = os.path.join(config.OUTPUT_DIR, "connectivity.csv")
         json_path = os.path.join(config.OUTPUT_DIR, "connectivity.json")
         write_csv(result.connectivity_log, csv_path)
-        write_json(result.connectivity_log, static_nodes,
+        write_json(result.connectivity_log, result.nodes,
                    full_circuit, result.stats, json_path)
 
     # ── Animation ─────────────────────────────────────────────────────────

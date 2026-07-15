@@ -1,0 +1,25 @@
+DTN Connectivity Analysis
+=========================
+Schema: 2.0
+Nodes: 25
+Contact windows: 509
+Bluetooth / WiFi: 183 / 326
+Mean contact duration: 9.6s
+Median contact duration: 8.0s
+Longest contact: 95.0s
+
+Most connected nodes:
+  ESC1            89 windows
+  V07             86 windows
+  V01             82 windows
+  V00             70 windows
+  WIS_O           62 windows
+  V02             57 windows
+  V08             56 windows
+  V06             53 windows
+  COI             51 windows
+  V04             49 windows
+
+Sightings delivered: 11 / 11
+Chunks delivered: 17 / 1000
+Total transfers: 74

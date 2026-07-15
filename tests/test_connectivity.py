@@ -20,13 +20,13 @@ def test_classify_tech_bt():
 
 
 def test_classify_tech_wifi():
-    assert classify_tech(41.0)  == "wifi"
+    assert classify_tech(config.BT_RANGE + 1) == "wifi"
     assert classify_tech(60.0)  == "wifi"
     print("PASS test_classify_tech_wifi")
 
 
 def test_classify_tech_none():
-    assert classify_tech(61.0)  == "none"
+    assert classify_tech(config.WIFI_RANGE + 1) == "none"
     assert classify_tech(200.0) == "none"
     print("PASS test_classify_tech_none")
 
@@ -55,23 +55,23 @@ def test_write_csv():
 
 
 def test_write_json():
-    from simulation.static_node import StaticNode
-    from moo.nsga2 import decode as decode_fn
-
     windows = []
-    node = StaticNode(
-        node_id="WIS_N", x=100.0, y=200.0,
-        mother_x=500.0, mother_y=500.0,
-        decode_fn=decode_fn, road_length=800.0
-    )
+    nodes = {"WIS_N": {
+        "node_type": "static", "radio_type": "both", "mobile": False,
+        "path": [
+            {"time_s": 0.0, "lat": 38.9, "lon": -77.06, "alt_m": 0.0},
+            {"time_s": 1800.0, "lat": 38.9, "lon": -77.06, "alt_m": 0.0},
+        ],
+    }}
     with tempfile.TemporaryDirectory() as tmp:
         path = os.path.join(tmp, "test.json")
-        write_json(windows, [node], ["N_37", "WIS_N"], {}, path)
+        write_json(windows, nodes, ["N_37", "WIS_N"], {}, path)
         with open(path) as f:
             j = json.load(f)
         assert "simulation" in j
-        assert "static_nodes" in j
-        assert "WIS_N" in j["static_nodes"]
+        assert j["schema_version"] == "2.0"
+        assert "WIS_N" in j["nodes"]
+        assert j["nodes"]["WIS_N"]["path"][0]["alt_m"] == 0.0
     print("PASS test_write_json")
 
 

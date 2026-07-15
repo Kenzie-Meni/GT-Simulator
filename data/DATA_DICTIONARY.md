@@ -108,25 +108,37 @@ threshold, so all ACK fields are 0 in the current default configuration.
 
 ---
 
-## connectivity.json
+## connectivity.json (schema version 2.0)
 
-Same contact window data as `connectivity.csv` but in JSON format, plus
-additional simulation metadata and aggregate statistics.
+JSON v2 stores each entity's time-indexed path once. Contact windows reference
+those entities by ID, avoiding duplicated endpoint coordinates. Positions
+between adjacent path points may be linearly interpolated. Mobile paths are
+sampled once per simulation timestep; stationary paths contain only the start
+and end of the simulation. Altitude currently uses `DEFAULT_ALTITUDE_M`.
 
 ```
 {
+  "schema_version": "2.0",
   "simulation": {
     "duration_s":        simulation length in seconds
     "area":              human-readable area name
     "bbox":              geographic bounding box {lat_min, lat_max, lon_min, lon_max}
     "bluetooth_range_m": BT radio range (metres)
     "wifi_range_m":      WiFi radio range (metres)
-    "num_static_nodes":  total IoT nodes (named + edge)
+    "num_nodes":         total vehicles, static nodes, and destinations
+    "default_altitude_m": fixed exported altitude
     "coi_circuit":       ordered list of node IDs on the COI's route
   },
-  "static_nodes": [
-    { "node_id", "x", "y", "lat", "lon", "radio_type" }   // one entry per IoT node
-  ],
+  "nodes": {
+    "V00": {
+      "node_type": "vehicle",       // vehicle | static | destination
+      "radio_type": "both",
+      "mobile": true,
+      "path": [
+        { "time_s": 0.0, "lat": 38.9, "lon": -77.06, "alt_m": 0.0 }
+      ]
+    }
+  },
   "statistics": {
     "total_windows":           total contact windows
     "bluetooth_windows":       BT-technology windows
@@ -149,13 +161,9 @@ additional simulation metadata and aggregate statistics.
   "windows": [
     {                          // one object per contact window
       "node_a", "node_b",      // entity IDs (same conventions as CSV)
-      "start_time", "end_time", "duration",
-      "min_dist", "max_dist",  // metres
-      "samples",               // number of timesteps this window was sampled
-      "tech",                  // "bluetooth" or "wifi"
-      "radio_type",            // shared channel that enabled contact
-      "start_lat_a", "start_lon_a", "start_lat_b", "start_lon_b",
-      "end_lat_a",   "end_lon_a",   "end_lat_b",   "end_lon_b"
+      "start_time_s", "end_time_s", "duration_s",
+      "min_distance_m", "max_distance_m",
+      "technology"             // "bluetooth" or "wifi"
     }
   ]
 }

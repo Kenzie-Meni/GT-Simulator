@@ -72,6 +72,7 @@ class SimulationResult:
         self.delivered_chunks: List[Message] = []  # FILE_CHUNK messages confirmed at dest
         self.connectivity_log: List[dict]    = []
         self.frames:           List[dict]    = []
+        self.nodes:            dict          = {}
         self.stats:            dict          = defaultdict(int)
 
     @property
@@ -118,6 +119,21 @@ def run(
     static_pos_map = {n.node_id: (n.x, n.y) for n in static_nodes}
     coi = next((v for v in vehicles if v.is_coi), None)
 
+    def add_node(node_id, node_type, radio_type, mobile, x, y):
+        lat, lon = xy2ll(x, y)
+        result.nodes[node_id] = {
+            "node_type": node_type, "radio_type": radio_type,
+            "mobile": mobile, "path": [{
+                "time_s": 0.0, "lat": lat, "lon": lon,
+                "alt_m": config.DEFAULT_ALTITUDE_M,
+            }],
+        }
+
+    for v in vehicles:
+        add_node(v.vid, "vehicle", v.radio_type, True, v.x, v.y)
+    for n in static_nodes:
+        add_node(n.node_id, "static", n.radio_type, False, n.x, n.y)
+
     # ── File transfer setup ────────────────────────────────────────────────
     file_source = random.choice(static_nodes)
     # Chunk IDs start well above sighting IDs to avoid collisions
@@ -126,6 +142,8 @@ def run(
     # Mother position for chunk delivery (passed in via result or derived)
     mother_x = getattr(result, "mother_x", None)
     mother_y = getattr(result, "mother_y", None)
+    if mother_x is not None:
+        add_node("DEST", "destination", "wifi", False, mother_x, mother_y)
 
     delivered_chunk_ids: set = set()   # chunk_idx values confirmed at destination
     acks_sent: set           = set()   # thresholds already ACKed (e.g. 0.25)
@@ -140,6 +158,11 @@ def run(
         for v in vehicles:
             fp = (coi.x, coi.y) if (v.is_follower and coi is not None) else None
             v.step(G, config.DT, follow_pos=fp)
+            lat, lon = xy2ll(v.x, v.y)
+            result.nodes[v.vid]["path"].append({
+                "time_s": t + config.DT, "lat": lat, "lon": lon,
+                "alt_m": config.DEFAULT_ALTITUDE_M,
+            })
 
         # ── COI sighting events ────────────────────────────────────────────
         if coi and t_int % config.COI_SIGHTING_INTERVAL == 0:
@@ -263,7 +286,6 @@ def run(
             for thresh in config.ACK_THRESHOLDS:
                 if completion >= thresh and thresh not in acks_sent:
                     acks_sent.add(thresh)
-                    from core.utils import xy2ll
                     lat, lon = xy2ll(mother_x, mother_y)
                     ack = Message(
                         msg_id        = ack_id_counter,
@@ -342,6 +364,11 @@ def run(
         _close_window(w, float(config.SIM_DURATION))
         if w["duration"] >= 1.0:
             result.connectivity_log.append(w)
+
+    # Two endpoints fully describe each stationary path.
+    for node in result.nodes.values():
+        if not node["mobile"]:
+            node["path"].append({**node["path"][0], "time_s": float(config.SIM_DURATION)})
 
     result.stats["total_messages"]       = len(result.all_messages)
     result.stats["delivered"]            = len(result.delivered_msgs)

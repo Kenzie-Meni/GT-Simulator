@@ -10,6 +10,7 @@ SEED = 42
 # ── Simulation timing ──────────────────────────────────────────────────────
 SIM_DURATION   = 1800   # seconds (30 minutes)
 DT             = 1.0    # timestep in seconds
+DEFAULT_ALTITUDE_M = 0.0  # fixed altitude exported for all simulated nodes
 
 # ── Communication ranges ───────────────────────────────────────────────────
 BT_RANGE   = 45.0   # metres — Bluetooth (IoT / BLE)
@@ -40,6 +41,10 @@ STATIC_NODE_IDS = [
 # Additional IoT nodes placed at random positions along road *edges*
 # (between intersections).  Set to 0 to use intersection nodes only.
 NUM_EDGE_NODES = 4
+
+# Destination landmark (for example "M_33") or exact OSM node ID.
+# None selects a random OSM node using SEED.
+DESTINATION_NODE = None
 
 # ── Car of Interest (COI) ──────────────────────────────────────────────────
 # Coarse waypoints — gaps are filled with nx.shortest_path at startup.

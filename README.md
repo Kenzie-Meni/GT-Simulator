@@ -191,8 +191,6 @@ pip install -r requirements.txt
 # macOS:  brew install ffmpeg
 # Ubuntu: sudo apt install ffmpeg
 
-# Optional: live OSM graph download (falls back to bundled GraphML if unavailable)
-pip install osmnx
 ```
 
 ---
@@ -205,6 +203,9 @@ pip install osmnx
 python run_simulation.py
 ```
 
+Set `DESTINATION_NODE` in `config.py` to a landmark such as `"M_33"` or an
+exact OSM node ID. Leave it as `None` for seeded random selection.
+
 Outputs written to `data/`:
 
 | File | Description |
@@ -214,6 +215,20 @@ Outputs written to `data/`:
 | `simulation.mp4` | Animated top-down map of the full simulation |
 
 See [data/DATA_DICTIONARY.md](data/DATA_DICTIONARY.md) for a full description of every field.
+
+### Connectivity analysis
+
+Generate a report from the latest schema-v2 connectivity output:
+
+```bash
+python analyze_results.py
+```
+
+![Connectivity analysis](data/analysis/connectivity.png)
+
+The chart covers contact duration, the most-connected nodes, radio usage, and
+contact activity over time. A concise companion report is available at
+[`data/analysis/summary.txt`](data/analysis/summary.txt).
 
 ### Batch run (100 randomized trials)
 

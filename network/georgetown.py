@@ -6,8 +6,9 @@ Builds a NetworkX graph from real OSM intersection coordinates.
 Streets covered: M, N, O, P, Q Streets NW and Wisconsin Ave NW,
 with N-S connectors at 31st, 33rd, 36th, and 37th Streets.
 
-Optionally downloads fresh data via osmnx if available and network
-access is present; falls back to the bundled GraphML otherwise.
+Optionally downloads fresh data via OSMnx and caches it as GraphML. If the
+network is unavailable, the last valid OSM cache is used. Hand-built road
+geometry is never used as a fallback.
 
 Usage
 -----
@@ -18,12 +19,12 @@ Usage
 import math
 import os
 import networkx as nx
-from core.utils import ll2xy, haversine_m
+from core.utils import ll2xy
 import config
 
 
-# ── Real OSM intersection coordinates ─────────────────────────────────────
-# (lat, lon) keyed by a short human-readable ID
+# Approximate landmark coordinates used only to map readable route names to
+# their nearest nodes in the real OSM graph. They never define road geometry.
 _NODES: dict[str, tuple[float, float]] = {
     # M Street NW (east-west)
     "M_37": (38.9041, -77.0631), "M_36": (38.9043, -77.0612),
@@ -50,63 +51,6 @@ _NODES: dict[str, tuple[float, float]] = {
     "Q_34": (38.9117, -77.0575), "Q_33": (38.9117, -77.0557),
 }
 
-_EDGES: list[tuple[str, str]] = [
-    # M Street
-    ("M_37","M_36"),("M_36","M_35"),("M_35","M_34"),("M_34","M_33"),
-    ("M_33","M_32"),("M_32","M_31"),
-    # Wisconsin Ave
-    ("M_35","WIS_N"),("WIS_N","WIS_O"),("WIS_O","WIS_P"),("WIS_P","WIS_Q"),
-    # N Street
-    ("N_37","N_36"),("N_36","WIS_N"),("WIS_N","N_34"),("N_34","N_33"),
-    ("N_33","N_32"),("N_32","N_31"),
-    # O Street
-    ("O_37","O_36"),("O_36","WIS_O"),("WIS_O","O_34"),("O_34","O_33"),("O_33","O_32"),
-    # P Street
-    ("P_37","P_36"),("P_36","WIS_P"),("WIS_P","P_34"),("P_34","P_33"),("P_33","P_32"),
-    # Q Street
-    ("Q_37","Q_36"),("Q_36","WIS_Q"),("WIS_Q","Q_34"),("Q_34","Q_33"),
-    # 37th Street N-S
-    ("M_37","N_37"),("N_37","O_37"),("O_37","P_37"),("P_37","Q_37"),
-    # 36th Street N-S
-    ("M_36","N_36"),("N_36","O_36"),("O_36","P_36"),("P_36","Q_36"),
-    # 33rd Street N-S
-    ("M_33","N_33"),("N_33","O_33"),("O_33","P_33"),("P_33","Q_33"),
-    # 32nd Street N-S
-    ("M_32","N_32"),("N_32","O_32"),("O_32","P_32"),
-    # 31st Street N-S
-    ("M_31","N_31"),
-]
-
-
-def _build_graph() -> nx.Graph:
-    G = nx.Graph()
-
-    for nid, (lat, lon) in _NODES.items():
-        x, y = ll2xy(lat, lon)
-        G.add_node(nid, lat=float(lat), lon=float(lon),
-                   x=float(round(x, 4)), y=float(round(y, 4)))
-
-    seen: set = set()
-    for u, v in _EDGES:
-        if u == v:
-            continue
-        key = tuple(sorted([u, v]))
-        if key in seen:
-            continue
-        seen.add(key)
-        lat1, lon1 = _NODES[u]
-        lat2, lon2 = _NODES[v]
-        length = haversine_m(lat1, lon1, lat2, lon2)
-        if length < 1.0:
-            continue
-        G.add_edge(u, v, length=float(round(length, 2)))
-
-    # Remove nodes with degree ≤ 1 (dead ends that could trap vehicles)
-    dead_ends = [n for n in G.nodes() if G.degree(n) <= 1]
-    G.remove_nodes_from(dead_ends)
-
-    return G
-
 
 def load_graph(try_osmnx: bool = False) -> nx.Graph:
     """
@@ -114,62 +58,46 @@ def load_graph(try_osmnx: bool = False) -> nx.Graph:
 
     Parameters
     ----------
-    try_osmnx : if True, attempt a live OSM download via osmnx first.
-                Falls back to the bundled data if osmnx is unavailable
-                or the network request fails.
+    try_osmnx : if True, refresh the graph from live OpenStreetMap first.
+                Falls back to the last valid OSM-derived GraphML cache.
 
     Returns
     -------
     NetworkX Graph with node attributes: lat, lon, x, y
     """
+    import osmnx as ox
+
+    graphml_path = os.path.join(os.path.dirname(__file__), "georgetown.graphml")
     if try_osmnx:
         try:
-            import osmnx as ox
             bbox = (
                 config.BBOX["lon_min"], config.BBOX["lat_min"],
                 config.BBOX["lon_max"], config.BBOX["lat_max"],
             )
             G_raw = ox.graph_from_bbox(bbox=bbox, network_type="drive")
-            G = nx.Graph(G_raw.to_undirected())
-            for n, data in G.nodes(data=True):
-                lat = data.get("y", 0.0)
-                lon = data.get("x", 0.0)
-                x, y = ll2xy(lat, lon)
-                G.nodes[n]["lat"] = float(lat)
-                G.nodes[n]["lon"] = float(lon)
-                G.nodes[n]["x"]   = float(x)
-                G.nodes[n]["y"]   = float(y)
-            print(f"[network] OSM download: {G.number_of_nodes()} nodes, "
-                  f"{G.number_of_edges()} edges")
-            return G
+            ox.save_graphml(G_raw, graphml_path)
+            print(f"[network] OSM download: {G_raw.number_of_nodes()} nodes, "
+                  f"{G_raw.number_of_edges()} edges")
         except Exception as e:
-            print(f"[network] osmnx unavailable ({e}), using bundled graph.")
+            print(f"[network] OSM refresh failed ({e}); using cached OSM graph.")
 
-    # Load pre-built GraphML if it exists
-    graphml_path = os.path.join(os.path.dirname(__file__), "georgetown.graphml")
-    if os.path.exists(graphml_path):
+    if os.path.exists(graphml_path) and os.path.getsize(graphml_path) > 0:
         try:
-            G = nx.read_graphml(graphml_path)
-            for n in G.nodes():
-                if "x" not in G.nodes[n]:
-                    lat = float(G.nodes[n]["lat"])
-                    lon = float(G.nodes[n]["lon"])
-                    x, y = ll2xy(lat, lon)
-                    G.nodes[n]["x"] = x
-                    G.nodes[n]["y"] = y
-            print(f"[network] Loaded GraphML: {G.number_of_nodes()} nodes, "
-                  f"{G.number_of_edges()} edges")
-            return G
+            G_raw = ox.load_graphml(graphml_path)
         except Exception as e:
-            print(f"[network] GraphML load failed ({e}), rebuilding from coordinates.")
+            raise RuntimeError(f"Invalid cached OSM graph: {graphml_path}") from e
+    else:
+        raise RuntimeError(
+            "No valid Georgetown OSM cache is available. Run with "
+            "load_graph(try_osmnx=True) while online."
+        )
 
-    # Build from bundled coordinates
-    G = _build_graph()
-    try:
-        nx.write_graphml(G, graphml_path)
-    except Exception:
-        pass
-    print(f"[network] Built from coordinates: {G.number_of_nodes()} nodes, "
+    G = nx.Graph(G_raw.to_undirected())
+    for n, data in G.nodes(data=True):
+        lat, lon = float(data["y"]), float(data["x"])
+        x, y = ll2xy(lat, lon)
+        G.nodes[n].update(lat=lat, lon=lon, x=float(x), y=float(y))
+    print(f"[network] Loaded OSM GraphML: {G.number_of_nodes()} nodes, "
           f"{G.number_of_edges()} edges")
     return G
 
